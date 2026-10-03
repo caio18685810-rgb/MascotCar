@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="MascotCar — Aromatizadores automotivos personalizados em formato de mascotes. Deixe seu carro com personalidade!" />
+  <title>MascotCar | Aromatizadores Automotivos Personalizados</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ========== BANNER ANÚNCIO ========== -->
+  <div class="announcement-bar" id="announcementBar" role="banner">
+    <div class="container announcement-bar__inner">
+      <p class="announcement-bar__text">
+        🚀 <strong>Loja em construção</strong> — Em breve você poderá personalizar e comprar seu mascote!
+      </p>
+      <button class="announcement-bar__close" id="closeAnnouncement" aria-label="Fechar aviso">✕</button>
+    </div>
+  </div>
+
+  <!-- ========== HEADER ========== -->
+  <header class="header" id="header">
+    <div class="container header__inner">
+
+      <!-- Logo -->
+      <a href="#" class="header__logo" aria-label="MascotCar — Página inicial">
+        <span class="logo__icon" aria-hidden="true">🚗</span>
+        <div class="logo__text">
+          <span class="logo__brand">Mascot<strong>Car</strong></span>
+          <span class="logo__tagline">Aromatizadores Personalizados</span>
+        </div>
+      </a>
+
+      <!-- Nav desktop -->
+      <nav class="nav" id="nav" aria-label="Menu principal">
+        <ul class="nav__list">
+          <li><a class="nav__link" href="#produtos">Produtos</a></li>
+          <li><a class="nav__link" href="#categorias">Categorias</a></li>
+          <li><a class="nav__link" href="#como-funciona">Personalização</a></li>
+          <li><a class="nav__link" href="#beneficios">Benefícios</a></li>
+          <li><a class="nav__link nav__link--cta" href="#comprar">Comprar</a></li>
+        </ul>
+      </nav>
+
+      <!-- Hamburger (mobile) -->
+      <button class="hamburger" id="hamburger" aria-label="Abrir menu" aria-expanded="false" aria-controls="nav">
+        <span class="hamburger__line"></span>
+        <span class="hamburger__line"></span>
+        <span class="hamburger__line"></span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ========== HERO ========== -->
+    <section class="hero" id="inicio" aria-label="Destaque principal">
+      <div class="hero__bg" aria-hidden="true"></div>
+      <div class="container hero__inner">
+        <div class="hero__content">
+          <span class="hero__badge">✨ Novidade no mercado automotivo</span>
+          <h1 class="hero__title">Aromatize seu carro com estilo e <em>personalidade</em></h1>
+          <p class="hero__subtitle">
+            Aromatizadores automotivos únicos em formato de mascotes. Escolha o personagem, a fragrância e deixe seu carro com a sua cara.
+          </p>
+          <div class="hero__actions">
+            <a href="#produtos" class="btn btn--primary btn--lg">Ver Produtos</a>
+            <a href="#como-funciona" class="btn btn--outline btn--lg">Como Funciona</a>
+          </div>
+          <div class="hero__stats">
+            <div class="stat">
+              <span class="stat__icon" aria-hidden="true">🎨</span>
+              <div class="stat__body">
+                <strong class="stat__num">100%</strong>
+                <span class="stat__label">Personalizável</span>
+              </div>
+            </div>
+            <div class="stat__divider" aria-hidden="true"></div>
+            <div class="stat">
+              <span class="stat__icon" aria-hidden="true">🌿</span>
+              <div class="stat__body">
+                <strong class="stat__num">+20</strong>
+                <span class="stat__label">Fragrâncias</span>
+              </div>
+            </div>
+            <div class="stat__divider" aria-hidden="true"></div>
+            <div class="stat">
+              <span class="stat__icon" aria-hidden="true">🚚</span>
+              <div class="stat__body">
+                <strong class="stat__num">BR</strong>
+                <span class="stat__label">Todo o Brasil</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hero__visual" aria-hidden="true">
+          <div class="hero__mascot-preview">
+            <div class="mascot-card mascot-card--featured">
+              <div class="mascot-card__emoji">🐻</div>
+              <p class="mascot-card__name">Ursinho Cheiroso</p>
+              <p class="mascot-card__tag">Produto Demonstrativo</p>
+            </div>
+            <div class="mascot-card">
+              <div class="mascot-card__emoji">🦁</div>
+              <p class="mascot-card__name">Leãozinho</p>
+              <p class="mascot-card__tag">Produto Demonstrativo</p>
+            </div>
+            <div class="mascot-card">
+              <div class="mascot-card__emoji">🐼</div>
+              <p class="mascot-card__name">Pandinha</p>
+              <p class="mascot-card__tag">Produto Demonstrativo</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Scroll indicator -->
+      <a href="#produtos" class="hero__scroll" aria-label="Rolar para produtos">
+        <span class="hero__scroll-icon">↓</span>
+      </a>
+    </section>
+
+    <!-- ========== CATEGORIAS ========== -->
+    <section class="categories" id="categorias">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-badge">Explore</span>
+          <h2 class="section-title">Categorias</h2>
+          <p class="section-subtitle">Encontre o mascote perfeito para o seu veículo</p>
+        </div>
+
+        <div class="categories__grid">
+          <button class="category-card category-card--active" data-filter="todos">
+            <span class="category-card__icon">🚗</span>
+            <span class="category-card__label">Todos</span>
+            <span class="category-card__count">6</span>
+          </button>
+          <button class="category-card" data-filter="animais">
+            <span class="category-card__icon">🐾</span>
+            <span class="category-card__label">Animais</span>
+            <span class="category-card__count">4</span>
+          </button>
+          <button class="category-card" data-filter="super-herois">
+            <span class="category-card__icon">🦸</span>
+            <span class="category-card__label">Super-Heróis</span>
+            <span class="category-card__count">1</span>
+          </button>
+          <button class="category-card" data-filter="esportes">
+            <span class="category-card__icon">⚽</span>
+            <span class="category-card__label">Esportes</span>
+            <span class="category-card__count">0</span>
+          </button>
+          <button class="category-card" data-filter="games">
+            <span class="category-card__icon">🎮</span>
+            <span class="category-card__label">Games</span>
+            <span class="category-card__count">1</span>
+          </button>
+          <button class="category-card" data-filter="customizado">
+            <span class="category-card__icon">✏️</span>
+            <span class="category-card__label">Customizado</span>
+            <span class="category-card__count">1</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== PRODUTOS ========== -->
+    <section class="products" id="produtos">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-badge">Catálogo</span>
+          <h2 class="section-title">Nossos Produtos</h2>
+          <p class="section-subtitle">⚠️ Conteúdo demonstrativo — produtos e preços não são reais</p>
+        </div>
+
+        <div class="products__grid" id="products-grid">
+
+          <!-- Produto 1 -->
+          <article class="product-card" data-category="animais">
+            <div class="product-card__badge">Mais Vendido</div>
+            <div class="product-card__image-wrap">
+              <div class="product-card__placeholder" aria-label="Imagem do produto Ursinho Floresta">
+                <span>🐻</span>
+              </div>
+            </div>
+            <div class="product-card__body">
+              <span class="product-card__category">Animais</span>
+              <h3 class="product-card__name">Ursinho Floresta</h3>
+              <p class="product-card__desc">Aromatizador em formato de urso com fragrância amadeirada. Ideal para quem ama a natureza.</p>
+              <div class="product-card__scents">
+                <span class="scent-tag">🌲 Cedro</span>
+                <span class="scent-tag">🌿 Bambu</span>
+              </div>
+              <div class="product-card__footer">
+                <span class="product-card__price demo-price">R$ --,--<small>*</small></span>
+                <button class="btn btn--primary btn--sm" disabled>Em Breve</button>
+              </div>
+            </div>
+          </article>
+
+          <!-- Produto 2 -->
+          <article class="product-card" data-category="animais">
+            <div class="product-card__image-wrap">
+              <div class="product-card__placeholder" aria-label="Imagem do produto Leão Selvagem">
+                <span>🦁</span>
+              </div>
+            </div>
+            <div class="product-card__body">
+              <span class="product-card__category">Animais</span>
+              <h3 class="product-card__name">Leão Selvagem</h3>
+              <p class="product-card__desc">Personalidade e força! Fragrância cítrica e refrescante para deixar seu carro com energia.</p>
+              <div class="product-card__scents">
+                <span class="scent-tag">🍋 Limão</span>
+                <span class="scent-tag">🌸 Floral</span>
+              </div>
+              <div class="product-card__footer">
+                <span class="product-card__price demo-price">R$ --,--<small>*</small></span>
+                <button class="btn btn--primary btn--sm" disabled>Em Breve</button>
+              </div>
+            </div>
+          </article>
+
+          <!-- Produto 3 -->
+          <article class="product-card" data-category="super-herois">
+            <div class="product-card__badge product-card__badge--new">Novo</div>
+            <div class="product-card__image-wrap">
+              <div class="product-card__placeholder" aria-label="Imagem do produto Herói Turbo">
+                <span>🦸</span>
+              </div>
+            </div>
+            <div class="product-card__body">
+              <span class="product-card__category">Super-Heróis</span>
+              <h3 class="product-card__name">Herói Turbo</h3>
+              <p class="product-card__desc">Para os fãs de super-heróis! Fragrância masculina intensa que combina com a velocidade.</p>
+              <div class="product-card__scents">
+                <span class="scent-tag">🔵 Aquático</span>
+                <span class="scent-tag">⚡ Cítrico</span>
+              </div>
+              <div class="product-card__footer">
+                <span class="product-card__price demo-price">R$ --,--<small>*</small></span>
+                <button class="btn btn--primary btn--sm" disabled>Em Breve</button>
+              </div>
+            </div>
+          </article>
+
+          <!-- Produto 4 -->
+          <article class="product-card" data-category="animais">
+            <div class="product-card__image-wrap">
+              <div class="product-card__placeholder" aria-label="Imagem do produto Pandinha Zen">
+                <span>🐼</span>
+              </div>
+            </div>
+            <div class="product-card__body">
+              <span class="product-card__category">Animais</span>
+              <h3 class="product-card__name">Pandinha Zen</h3>
+              <p class="product-card__desc">Relaxe no trânsito com a calma da Pandinha e fragrância suave de lavanda e baunilha.</p>
+              <div class="product-card__scents">
+                <span class="scent-tag">💜 Lavanda</span>
+                <span class="scent-tag">🍦 Baunilha</span>
+              </div>
+              <div class="product-card__footer">
+                <span class="product-card__price demo-price">R$ --,--<small>*</small></span>
+                <button class="btn btn--primary btn--sm" disabled>Em Breve</button>
+              </div>
+            </div>
+          </article>
+
+          <!-- Produto 5 -->
+          <article class="product-card" data-category="games">
+            <div class="product-card__image-wrap">
+              <div class="product-card__placeholder" aria-label="Imagem do produto Pixel Racer">
+                <span>🎮</span>
+              </div>
+            </div>
+            <div class="product-card__body">
+              <span class="product-card__category">Games</span>
+              <h3 class="product-card__name">Pixel Racer</h3>
+              <p class="product-card__desc">Para os gamers de plantão! Design retrô inspirado nos clássicos dos videogames.</p>
+              <div class="product-card__scents">
+                <span class="scent-tag">🍭 Frutado</span>
+                <span class="scent-tag">🌴 Tropical</span>
+              </div>
+              <div class="product-card__footer">
+                <span class="product-card__price demo-price">R$ --,--<small>*</small></span>
+                <button class="btn btn--primary btn--sm" disabled>Em Breve</button>
+              </div>
+            </div>
+          </article>
+
+          <!-- Produto 6 -->
+          <article class="product-card" data-category="customizado">
+            <div class="product-card__badge product-card__badge--special">Exclusivo</div>
+            <div class="product-card__image-wrap">
+              <div class="product-card__placeholder product-card__placeholder--custom" aria-label="Produto customizado">
+                <span>✏️</span>
+              </div>
+            </div>
+            <div class="product-card__body">
+              <span class="product-card__category">Customizado</span>
+              <h3 class="product-card__name">Mascote do Seu Jeito</h3>
+              <p class="product-card__desc">Crie o seu mascote do zero! Escolha o design, as cores, o nome e a fragrância favorita.</p>
+              <div class="product-card__scents">
+                <span class="scent-tag">🎨 Você escolhe</span>
+              </div>
+              <div class="product-card__footer">
+                <span class="product-card__price demo-price">Sob consulta</span>
+                <button class="btn btn--secondary btn--sm" disabled>Em Breve</button>
+              </div>
+            </div>
+          </article>
+
+        </div>
+
+        <p class="products__disclaimer">
+          * Os preços, produtos e características acima são <strong>apenas demonstrativos</strong> e não representam ofertas reais.
+        </p>
+      </div>
+    </section>
+
+    <!-- ========== COMO FUNCIONA ========== -->
+    <section class="how-it-works" id="como-funciona">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-badge">Processo</span>
+          <h2 class="section-title">Como Funciona a Personalização?</h2>
+          <p class="section-subtitle">Em 4 passos simples, você cria o seu aromatizador único</p>
+        </div>
+
+        <div class="steps">
+
+          <div class="step">
+            <div class="step__number">01</div>
+            <div class="step__icon" aria-hidden="true">🐾</div>
+            <h3 class="step__title">Escolha o Mascote</h3>
+            <p class="step__desc">Selecione o personagem que mais combina com você: animais, super-heróis, personagens de games e muito mais.</p>
+          </div>
+
+          <div class="step__connector" aria-hidden="true">→</div>
+
+          <div class="step">
+            <div class="step__number">02</div>
+            <div class="step__icon" aria-hidden="true">🎨</div>
+            <h3 class="step__title">Personalize o Visual</h3>
+            <p class="step__desc">Escolha as cores, adicione um nome ou mensagem especial. Torne-o verdadeiramente seu.</p>
+          </div>
+
+          <div class="step__connector" aria-hidden="true">→</div>
+
+          <div class="step">
+            <div class="step__number">03</div>
+            <div class="step__icon" aria-hidden="true">🌿</div>
+            <h3 class="step__title">Selecione a Fragrância</h3>
+            <p class="step__desc">Escolha entre diversas opções de fragrâncias naturais: florais, cítricas, amadeiradas, frutadas e muito mais.</p>
+          </div>
+
+          <div class="step__connector" aria-hidden="true">→</div>
+
+          <div class="step">
+            <div class="step__number">04</div>
+            <div class="step__icon" aria-hidden="true">🚚</div>
+            <h3 class="step__title">Receba em Casa</h3>
+            <p class="step__desc">Produzimos com cuidado e enviamos diretamente para você. Seu mascote chega pronto para aromatizar.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== BENEFÍCIOS ========== -->
+    <section class="benefits" id="beneficios">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-badge">Por que MascotCar?</span>
+          <h2 class="section-title">Nossos Diferenciais</h2>
+          <p class="section-subtitle">Qualidade, personalização e charme em cada detalhe</p>
+        </div>
+
+        <div class="benefits__grid">
+
+          <div class="benefit-card">
+            <div class="benefit-card__icon-wrap" aria-hidden="true">🎨</div>
+            <h3 class="benefit-card__title">100% Personalizável</h3>
+            <p class="benefit-card__desc">Cada mascote é único. Você decide o visual, o nome e a fragrância. Resultado? Um produto exclusivo como você.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-card__icon-wrap" aria-hidden="true">🌿</div>
+            <h3 class="benefit-card__title">Fragrâncias Naturais</h3>
+            <p class="benefit-card__desc">Utilizamos fragrâncias de alta qualidade, duradouras e seguras para o ambiente interno do seu veículo.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-card__icon-wrap benefit-card__icon-wrap--accent" aria-hidden="true">⭐</div>
+            <h3 class="benefit-card__title">Alta Durabilidade</h3>
+            <p class="benefit-card__desc">Nossos aromatizadores são produzidos com materiais resistentes e fragrâncias de longa duração.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-card__icon-wrap" aria-hidden="true">🎁</div>
+            <h3 class="benefit-card__title">Ótimo para Presente</h3>
+            <p class="benefit-card__desc">Um presente criativo e original para amigos, familiares e colegas que amam personalidade no carro.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-card__icon-wrap benefit-card__icon-wrap--navy" aria-hidden="true">🤝</div>
+            <h3 class="benefit-card__title">Atacado Disponível</h3>
+            <p class="benefit-card__desc">Empresas e revendedores, entre em contato! Em breve abriremos vendas no atacado com condições especiais.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-card__icon-wrap" aria-hidden="true">💬</div>
+            <h3 class="benefit-card__title">Suporte Dedicado</h3>
+            <p class="benefit-card__desc">Nossa equipe está pronta para ajudar em cada etapa da personalização e tirar todas as suas dúvidas.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== CTA (CHAMADA PARA COMPRA) ========== -->
+    <section class="cta" id="comprar" aria-label="Chamada para ação">
+      <div class="container">
+        <div class="cta__inner">
+          <div class="cta__content">
+            <span class="cta__emoji" aria-hidden="true">🚗💨</span>
+            <h2 class="cta__title">Pronto para transformar seu carro?</h2>
+            <p class="cta__subtitle">
+              Seja o primeiro a ter o seu mascote exclusivo. Em breve a loja estará disponível. Fique por dentro!
+            </p>
+            <div class="cta__actions">
+              <button class="btn btn--light btn--lg" disabled>
+                🔔 Avise-me quando abrir
+              </button>
+              <a href="#como-funciona" class="btn btn--outline-light btn--lg">Saiba mais</a>
+            </div>
+            <p class="cta__note">⚠️ Loja em construção — botões desativados para demonstração</p>
+          </div>
+          <div class="cta__decoration" aria-hidden="true">
+            <span class="floating-emoji">🐻</span>
+            <span class="floating-emoji">🦁</span>
+            <span class="floating-emoji">🐼</span>
+            <span class="floating-emoji">🦸</span>
+            <span class="floating-emoji">🎮</span>
+            <span class="floating-emoji">⭐</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========== FOOTER ========== -->
+  <footer class="footer" id="contato">
+    <div class="container">
+
+      <div class="footer__top">
+
+        <!-- Marca -->
+        <div class="footer__brand">
+          <a href="#" class="footer__logo" aria-label="MascotCar">
+            <span>🚗</span> Mascot<strong>Car</strong>
+          </a>
+          <p class="footer__brand-desc">
+            Aromatizadores automotivos personalizados em formato de mascotes. Deixe seu carro com personalidade!
+          </p>
+        </div>
+
+        <!-- Links rápidos -->
+        <div class="footer__col">
+          <h4 class="footer__col-title">Navegação</h4>
+          <ul class="footer__links">
+            <li><a href="#inicio">Início</a></li>
+            <li><a href="#produtos">Produtos</a></li>
+            <li><a href="#categorias">Categorias</a></li>
+            <li><a href="#como-funciona">Personalização</a></li>
+            <li><a href="#beneficios">Benefícios</a></li>
+          </ul>
+        </div>
+
+        <!-- Informações -->
+        <div class="footer__col">
+          <h4 class="footer__col-title">Informações</h4>
+          <ul class="footer__links">
+            <li><a href="#">Sobre nós</a></li>
+            <li><a href="#">Como Personalizar</a></li>
+            <li><a href="#">Atacado</a></li>
+            <li><a href="#">Política de Privacidade</a></li>
+            <li><a href="#">Termos de Uso</a></li>
+          </ul>
+        </div>
+
+        <!-- Contato -->
+        <div class="footer__col">
+          <h4 class="footer__col-title">Contato</h4>
+          <ul class="footer__links footer__links--contact">
+            <li>📧 contato@mascotcar.com.br<small> (demonstrativo)</small></li>
+            <li>📱 (00) 00000-0000<small> (demonstrativo)</small></li>
+            <li>🌐 Entrega para todo o Brasil</li>
+          </ul>
+          <div class="footer__social">
+            <a href="#" class="social-link" aria-label="Instagram">📸 Instagram</a>
+            <a href="#" class="social-link" aria-label="WhatsApp">💬 WhatsApp</a>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="footer__bottom">
+        <p>&copy; 2026 MascotCar. Todos os direitos reservados.</p>
+        <p class="footer__disclaimer">Este site é uma demonstração. Produtos, preços e informações de contato são fictícios.</p>
+      </div>
+
+    </div>
+  </footer>
+
+  <!-- Back to top button -->
+  <button class="back-to-top" id="backToTop" aria-label="Voltar ao topo">↑</button>
+
+  <script src="js/main.js"></script>
+</body>
+</html>
