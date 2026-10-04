@@ -104,7 +104,8 @@ if (BACK_TO_TOP) {
    4. FILTRO DE CATEGORIAS
 ══════════════════════════════════════════ */
 function filterProducts(category) {
-  PRODUCTS.forEach(card => {
+  const currentProducts = document.querySelectorAll('.product-card[data-category]');
+  currentProducts.forEach(card => {
     const cardCat = card.dataset.category;
     const show    = category === 'todos' || cardCat === category;
 
