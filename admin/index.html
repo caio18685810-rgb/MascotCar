@@ -265,13 +265,24 @@
             <!-- ID oculto do produto -->
             <input type="hidden" id="edit-id">
 
-            <!-- Prévia e Galeria de Imagens (Etapa 3D) -->
+            <!-- Prévia e Galeria de Imagens (Etapa 3D e 3E) -->
             <div class="form-group">
-              <label class="form-label">Visualização da Imagem</label>
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+                <label class="form-label" style="margin-bottom: 0;">Visualização da Imagem</label>
+                <button 
+                  type="button" 
+                  id="btn-remove-image" 
+                  class="btn btn-outline-danger btn-sm" 
+                  style="display: none; padding: 0.25rem 0.65rem; font-size: 0.75rem;"
+                  title="Desvincular e remover imagem deste produto"
+                >
+                  🗑️ Remover Imagem
+                </button>
+              </div>
               <div id="product-image-viewer" class="product-image-viewer">
                 <!-- Preenchido dinamicamente por products.js -->
               </div>
-              <span class="form-help">A imagem não pode ser alterada ou removida nesta etapa. Clique para ampliar.</span>
+              <span class="form-help">Clique na imagem para ampliar em tamanho real.</span>
             </div>
 
             <div class="form-group">
