@@ -104,10 +104,16 @@ if (BACK_TO_TOP) {
    4. FILTRO DE CATEGORIAS
 ══════════════════════════════════════════ */
 function filterProducts(category) {
+  // Se o catálogo dinâmico estiver carregado, delega para ele
+  if (window.MascotCarData && typeof window.MascotCarData.setCategoryFilter === 'function') {
+    window.MascotCarData.setCategoryFilter(category);
+    return;
+  }
+
   const currentProducts = document.querySelectorAll('.product-card[data-category]');
   currentProducts.forEach(card => {
     const cardCat = card.dataset.category;
-    const show    = category === 'todos' || cardCat === category;
+    const show    = category === 'todos' || category === 'all' || cardCat === category;
 
     // Animação suave
     if (show) {

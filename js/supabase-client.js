@@ -1,11 +1,13 @@
 /**
  * MascotCar — Configuração e Integração com Supabase
- * Responsável pela conexão segura com a API pública do Supabase e
- * carregamento dinâmico dos produtos da tabela public.products.
+ * Responsável pela conexão segura com a API pública do Supabase,
+ * carregamento dinâmico dos produtos da tabela public.products,
+ * busca em tempo real, filtros, ordenação e modal de detalhes (Etapa 3H).
  *
  * ⚠️ SEGURANÇA:
  * - Apenas a chave pública (Publishable / Anon Key) é permitida no frontend.
  * - NUNCA inclua 'service_role' ou segredos de banco de dados neste arquivo.
+ * - Operações exclusivas de leitura (SELECT).
  */
 
 'use strict';
@@ -41,9 +43,23 @@ let supabaseClient = null;
   }
 })();
 
+// ----------------------------------------------------------------------------
+// ESTADO DO CATÁLOGO PÚBLICO (Etapa 3H)
+// ----------------------------------------------------------------------------
+
+let publicCatalogProducts = [];
+let publicCatalogCategories = [];
+
+const publicCatalogFilters = {
+  search: '',
+  category: 'all',
+  stock: 'all',
+  sort: 'recent'
+};
+
 /**
  * Consulta a tabela public.products no Supabase via SELECT.
- * Não realiza operações de escrita (INSERT, UPDATE ou DELETE).
+ * Retorna somente produtos ativos (active = true).
  *
  * @returns {Promise<{success: boolean, data?: Array, error?: any}>}
  */
@@ -55,7 +71,9 @@ async function fetchProductsFromSupabase() {
   try {
     const { data, error } = await supabaseClient
       .from('products')
-      .select('*, categories(*)');
+      .select('*, categories(*)')
+      .eq('active', true)
+      .order('created_at', { ascending: false });
 
     if (error) {
       return { success: false, error };
@@ -92,44 +110,106 @@ async function fetchCategoriesFromSupabase() {
   }
 }
 
+// ----------------------------------------------------------------------------
+// FORMATAÇÃO E HELPERS
+// ----------------------------------------------------------------------------
+
+function formatCurrency(val) {
+  if (typeof val === 'number') {
+    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+  if (val) {
+    return `R$ ${val}`;
+  }
+  return 'R$ --,--';
+}
+
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function normalizeSearchText(str) {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 /**
- * Gera o markup HTML de um produto com os campos oficiais:
- * name, description, price, image_url e stock.
- *
+ * Constrói o link de contato do WhatsApp para um produto específico.
+ * Se houver um número comercial configurado no futuro, pode ser inserido aqui.
+ * Atualmente gera o link compartilhável com a mensagem personalizada do produto.
+ */
+function buildWhatsAppProductLink(product) {
+  const productName = product ? product.name : 'Mascote';
+  const textMsg = encodeURIComponent(`Olá! Gostaria de mais informações sobre o aromatizador "${productName}" no MascotCar.`);
+  return `https://wa.me/?text=${textMsg}`;
+}
+
+/**
+ * Cria o elemento DOM seguro do placeholder de imagem do produto.
+ * @returns {HTMLDivElement}
+ */
+function createProductPlaceholderElement() {
+  const placeholder = document.createElement('div');
+  placeholder.className = 'product-card__placeholder';
+  const span = document.createElement('span');
+  span.textContent = '🚗';
+  placeholder.appendChild(span);
+  return placeholder;
+}
+
+/**
+ * Substitui de forma segura uma imagem quebrada pelo placeholder oficial no DOM.
+ * @param {HTMLImageElement} imgElement
+ */
+function handleProductImageError(imgElement) {
+  if (!imgElement || !imgElement.parentElement) return;
+  const parent = imgElement.parentElement;
+  imgElement.remove();
+  parent.appendChild(createProductPlaceholderElement());
+}
+
+/**
+ * Gera o markup HTML de um card de produto do catálogo público.
  * @param {Object} product
  * @returns {string}
  */
 function buildProductCardHTML(product) {
-  const name = product.name || 'Mascote MascotCar';
-  const desc = product.description || 'Aromatizador veicular personalizado com fragrância duradoura.';
-  
-  // Formatação de preço (BRL)
-  let formattedPrice = 'R$ --,--';
-  if (typeof product.price === 'number') {
-    formattedPrice = product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  } else if (product.price) {
-    formattedPrice = `R$ ${product.price}`;
-  }
-
+  const name = escapeHTML(product.name || 'Mascote MascotCar');
+  const desc = escapeHTML(product.description || 'Aromatizador veicular personalizado com fragrância duradoura.');
+  const formattedPrice = formatCurrency(product.price);
   const stock = typeof product.stock === 'number' ? product.stock : 0;
   const inStock = stock > 0;
 
-  // Categoria obtida do relacionamento ou fallback
+  // Categoria
+  const categoryLabel = escapeHTML(
+    (product.categories && product.categories.name)
+      ? product.categories.name
+      : (product.category || 'Geral')
+  );
+
   const categorySlug = (product.categories && product.categories.slug)
     ? product.categories.slug
-    : (product.category || 'animais').toLowerCase();
-
-  const categoryLabel = (product.categories && product.categories.name)
-    ? product.categories.name
-    : (product.category || 'Mascote');
+    : (product.category_id || 'geral');
 
   // Imagem real ou placeholder estilizado
   const imageMarkup = product.image_url
-    ? `<img src="${product.image_url}" alt="${name}" class="product-card__img" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<div class=\'product-card__placeholder\'><span>🚗</span></div>';">`
+    ? `<img src="${escapeHTML(product.image_url)}" alt="${name}" class="product-card__img" style="width:100%;height:100%;object-fit:cover;">`
     : `<div class="product-card__placeholder"><span>🚗</span></div>`;
 
+  const waLink = buildWhatsAppProductLink(product);
+
   return `
-    <article class="product-card" data-category="${categorySlug}">
+    <article class="product-card" data-category="${categorySlug}" data-id="${escapeHTML(product.id)}">
       ${inStock ? `<div class="product-card__badge">Disponível</div>` : `<div class="product-card__badge" style="background:#718096;">Esgotado</div>`}
       <div class="product-card__image-wrap">
         ${imageMarkup}
@@ -143,67 +223,431 @@ function buildProductCardHTML(product) {
         </div>
         <div class="product-card__footer">
           <span class="product-card__price">${formattedPrice}</span>
-          <button class="btn btn--primary btn--sm" ${inStock ? '' : 'disabled'}>
-            ${inStock ? 'Comprar' : 'Esgotado'}
+        </div>
+        <div class="product-card__actions">
+          <button type="button" class="btn btn--outline btn--sm btn-card-details" data-detail-id="${escapeHTML(product.id)}">
+            Ver Detalhes
           </button>
+          <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="btn-card-whatsapp" title="Consultar produto via WhatsApp" aria-label="Consultar ${name} via WhatsApp">
+            💬
+          </a>
         </div>
       </div>
     </article>
   `;
 }
 
-/**
- * Carrega e renderiza os produtos reais da tabela public.products.
- * Mantém os produtos de teste existentes se houver falha de rede ou pendência de RLS.
- */
-async function loadCatalog() {
+// ----------------------------------------------------------------------------
+// MODAL DE DETALHES DO PRODUTO (Etapa 3H)
+// ----------------------------------------------------------------------------
+
+function openProductDetailModal(productId) {
+  const product = publicCatalogProducts.find((p) => p.id === productId);
+  if (!product) return;
+
+  const modalEl = document.getElementById('product-detail-modal');
+  if (!modalEl) return;
+
+  const titleEl = document.getElementById('modal-product-title');
+  const catEl = document.getElementById('modal-product-category');
+  const badgeEl = document.getElementById('modal-product-badge');
+  const priceEl = document.getElementById('modal-product-price');
+  const descEl = document.getElementById('modal-product-desc');
+  const stockEl = document.getElementById('modal-product-stock');
+  const mediaContainer = document.getElementById('modal-product-media-container');
+  const waBtn = document.getElementById('modal-product-whatsapp');
+
+  const name = product.name || 'Mascote MascotCar';
+  const desc = product.description || 'Aromatizador veicular personalizado com fragrância agradável e alta durabilidade.';
+  const stock = typeof product.stock === 'number' ? product.stock : 0;
+  const inStock = stock > 0;
+
+  const categoryName = (product.categories && product.categories.name)
+    ? product.categories.name
+    : 'Geral';
+
+  if (titleEl) titleEl.textContent = name;
+  if (catEl) catEl.textContent = categoryName;
+
+  if (badgeEl) {
+    badgeEl.textContent = inStock ? 'Disponível' : 'Esgotado';
+    badgeEl.className = inStock ? 'product-modal-badge' : 'product-modal-badge product-modal-badge--out';
+  }
+
+  if (priceEl) priceEl.textContent = formatCurrency(product.price);
+  if (descEl) descEl.textContent = desc;
+  if (stockEl) stockEl.textContent = `📦 Estoque: ${stock} unidades`;
+
+  if (mediaContainer) {
+    mediaContainer.innerHTML = '';
+    if (product.image_url) {
+      const img = document.createElement('img');
+      img.src = product.image_url;
+      img.alt = name;
+      img.className = 'product-modal-img';
+      img.addEventListener('error', () => {
+        handleProductImageError(img);
+      }, { once: true });
+      mediaContainer.appendChild(img);
+    } else {
+      mediaContainer.appendChild(createProductPlaceholderElement());
+    }
+  }
+
+  if (waBtn) {
+    waBtn.href = buildWhatsAppProductLink(product);
+  }
+
+  modalEl.style.display = 'flex';
+  requestAnimationFrame(() => {
+    modalEl.classList.add('is-open');
+  });
+  document.body.style.overflow = 'hidden';
+}
+
+function closeProductDetailModal() {
+  const modalEl = document.getElementById('product-detail-modal');
+  if (!modalEl) return;
+
+  modalEl.classList.remove('is-open');
+  setTimeout(() => {
+    modalEl.style.display = 'none';
+    document.body.style.overflow = '';
+  }, 200);
+}
+
+// ----------------------------------------------------------------------------
+// FILTRAGEM, BUSCA E ORDENAÇÃO (Etapa 3H)
+// ----------------------------------------------------------------------------
+
+function applyPublicCatalogFilters() {
+  let filtered = [...publicCatalogProducts];
+
+  // 1. Busca por termo (nome e descrição)
+  const query = normalizeSearchText(publicCatalogFilters.search);
+  if (query) {
+    filtered = filtered.filter((prod) => {
+      const nameNorm = normalizeSearchText(prod.name);
+      const descNorm = normalizeSearchText(prod.description);
+      return nameNorm.includes(query) || descNorm.includes(query);
+    });
+  }
+
+  // 2. Filtro de Categoria
+  if (publicCatalogFilters.category !== 'all' && publicCatalogFilters.category !== 'todos') {
+    filtered = filtered.filter((prod) => {
+      if (publicCatalogFilters.category === 'uncategorized') {
+        return !prod.category_id;
+      }
+      // Se for id de categoria
+      if (prod.category_id === publicCatalogFilters.category) return true;
+      // Se for slug da categoria
+      if (prod.categories && prod.categories.slug === publicCatalogFilters.category) return true;
+      if (prod.category && prod.category.toLowerCase() === publicCatalogFilters.category.toLowerCase()) return true;
+      return false;
+    });
+  }
+
+  // 3. Filtro de Estoque / Disponibilidade
+  if (publicCatalogFilters.stock === 'in-stock') {
+    filtered = filtered.filter((prod) => (Number(prod.stock) || 0) > 0);
+  } else if (publicCatalogFilters.stock === 'out-of-stock') {
+    filtered = filtered.filter((prod) => (Number(prod.stock) || 0) === 0);
+  }
+
+  // 4. Ordenação
+  const sort = publicCatalogFilters.sort;
+  filtered.sort((a, b) => {
+    switch (sort) {
+      case 'name-asc':
+        return (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' });
+      case 'name-desc':
+        return (b.name || '').localeCompare(a.name || '', 'pt-BR', { sensitivity: 'base' });
+      case 'price-asc': {
+        const pa = typeof a.price === 'number' ? a.price : parseFloat(a.price) || 0;
+        const pb = typeof b.price === 'number' ? b.price : parseFloat(b.price) || 0;
+        return pa - pb;
+      }
+      case 'price-desc': {
+        const pa = typeof a.price === 'number' ? a.price : parseFloat(a.price) || 0;
+        const pb = typeof b.price === 'number' ? b.price : parseFloat(b.price) || 0;
+        return pb - pa;
+      }
+      case 'recent':
+      default: {
+        const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return db - da;
+      }
+    }
+  });
+
+  return filtered;
+}
+
+function renderPublicCatalog() {
   const grid = document.getElementById('products-grid');
+  const countBadge = document.getElementById('catalog-count-badge');
+  const subtitle = document.getElementById('products-subtitle');
   if (!grid) return;
 
-  const result = await fetchProductsFromSupabase();
+  const totalLoaded = publicCatalogProducts.length;
 
-  if (result.success) {
-    const products = result.data;
-    console.info(`✅ [MascotCar] Conexão com Supabase OK! Produtos encontrados: ${products.length}`);
+  if (totalLoaded === 0) {
+    if (countBadge) countBadge.textContent = '0 produtos';
+    grid.innerHTML = `
+      <div class="catalog-empty-state">
+        <span class="catalog-empty-icon">📦</span>
+        <h3 class="catalog-empty-title">Nenhum produto disponível no momento</h3>
+        <p class="catalog-empty-desc">Nosso catálogo está sendo abastecido no Supabase. Volte em breve!</p>
+      </div>
+    `;
+    return;
+  }
 
-    if (products.length === 0) {
-      // Caso não haja produtos cadastrados no banco
-      grid.innerHTML = `
-        <div class="products-empty-state" style="grid-column: 1 / -1; text-align: center; padding: 3.5rem 1.5rem; background: var(--color-bg-alt); border: 2px dashed var(--color-border); border-radius: var(--radius-lg);">
-          <span style="font-size: 3rem; display: block; margin-bottom: 0.5rem;">📦</span>
-          <h3 style="font-size: 1.25rem; font-weight: 700; color: var(--color-secondary); margin-bottom: 0.5rem;">Nenhum produto cadastrado no momento</h3>
-          <p style="color: var(--color-text-muted); font-size: 0.95rem; max-width: 480px; margin: 0 auto;">Nosso estoque está sendo abastecido no Supabase. Volte em breve!</p>
-        </div>
-      `;
-      return;
+  const filtered = applyPublicCatalogFilters();
+  const hasActiveFilters =
+    publicCatalogFilters.search.trim().length > 0 ||
+    publicCatalogFilters.category !== 'all' ||
+    publicCatalogFilters.stock !== 'all';
+
+  if (countBadge) {
+    if (hasActiveFilters) {
+      countBadge.textContent = `Exibindo ${filtered.length} de ${totalLoaded} produto${totalLoaded !== 1 ? 's' : ''}`;
+    } else {
+      countBadge.textContent = `${totalLoaded} produto${totalLoaded !== 1 ? 's' : ''} disponível${totalLoaded !== 1 ? 'is' : ''}`;
     }
+  }
 
-    // Renderiza os produtos reais do Supabase
-    grid.innerHTML = products.map(buildProductCardHTML).join('');
+  if (subtitle) {
+    subtitle.textContent = `Catálogo oficial conectado via Supabase (${totalLoaded} produto${totalLoaded !== 1 ? 's' : ''})`;
+  }
 
-    // Atualiza subtítulo informando produtos reais
-    const subtitle = document.querySelector('#produtos .section-subtitle');
-    if (subtitle) {
-      const countText = products.length === 1 ? '1 produto disponível' : `${products.length} produtos disponíveis`;
-      subtitle.textContent = `Catálogo oficial conectado via Supabase (${countText})`;
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="catalog-empty-state">
+        <span class="catalog-empty-icon">🔍</span>
+        <h3 class="catalog-empty-title">Nenhum produto encontrado</h3>
+        <p class="catalog-empty-desc">Nenhum produto corresponde aos termos ou filtros selecionados.</p>
+        <button type="button" class="btn btn--outline btn--sm btn-reset-from-empty">
+          Limpar Filtros
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(buildProductCardHTML).join('');
+
+  // Anexa listeners de erro seguros nas imagens dos cards renderizados
+  grid.querySelectorAll('img.product-card__img').forEach((img) => {
+    img.addEventListener('error', () => {
+      handleProductImageError(img);
+    }, { once: true });
+  });
+}
+
+function resetPublicCatalogFilters() {
+  publicCatalogFilters.search = '';
+  publicCatalogFilters.category = 'all';
+  publicCatalogFilters.stock = 'all';
+  publicCatalogFilters.sort = 'recent';
+
+  const searchInput = document.getElementById('catalog-search-input');
+  if (searchInput) searchInput.value = '';
+
+  const clearBtn = document.getElementById('catalog-clear-search');
+  if (clearBtn) clearBtn.style.display = 'none';
+
+  const catSelect = document.getElementById('catalog-filter-category');
+  if (catSelect) catSelect.value = 'all';
+
+  const stockSelect = document.getElementById('catalog-filter-stock');
+  if (stockSelect) stockSelect.value = 'all';
+
+  const sortSelect = document.getElementById('catalog-sort');
+  if (sortSelect) sortSelect.value = 'recent';
+
+  // Sincroniza botões de categoria do topo da página
+  const catButtons = document.querySelectorAll('.category-card');
+  catButtons.forEach((b) => {
+    b.classList.remove('category-card--active');
+    if (b.dataset.filter === 'todos') {
+      b.classList.add('category-card--active');
     }
+  });
 
-    // Atualiza visibilidade dos novos cards
-    grid.querySelectorAll('.product-card').forEach((el) => {
-      el.style.opacity = '1';
-      el.style.transform = 'translateY(0)';
-    });
+  renderPublicCatalog();
+}
 
+function setCategoryFilter(categorySlugOrId) {
+  if (!categorySlugOrId || categorySlugOrId === 'todos') {
+    publicCatalogFilters.category = 'all';
   } else {
-    // Tratamento de erro (ex: RLS pendente ou falha de conexão)
-    console.warn('⚠️ [MascotCar] Não foi possível obter os produtos de public.products:', result.error.message || result.error);
-    console.info('💡 Dica: Aplique a política RLS no painel do Supabase para que a chave pública (anon) possa ler public.products.');
-    console.info('ℹ️ [MascotCar] Mantendo os produtos de teste visíveis para validação contínua da interface.');
+    publicCatalogFilters.category = categorySlugOrId;
+  }
 
-    // Mantém os produtos de teste no grid sem quebrar o layout
-    const subtitle = document.querySelector('#produtos .section-subtitle');
-    if (subtitle && result.error.code === '42501') {
-      subtitle.textContent = '⚠️ Modo de teste — Produtos demonstrativos (Aguardando liberação de RLS no Supabase)';
+  const catSelect = document.getElementById('catalog-filter-category');
+  if (catSelect) {
+    catSelect.value = publicCatalogFilters.category;
+  }
+
+  renderPublicCatalog();
+}
+
+function populateCategorySelect() {
+  const select = document.getElementById('catalog-filter-category');
+  if (!select) return;
+
+  const currentVal = select.value;
+  select.innerHTML = `<option value="all">Todas as Categorias</option>`;
+
+  publicCatalogCategories.forEach((cat) => {
+    const opt = document.createElement('option');
+    opt.value = cat.id;
+    opt.textContent = cat.name;
+    select.appendChild(opt);
+  });
+
+  const uncategorizedOpt = document.createElement('option');
+  uncategorizedOpt.value = 'uncategorized';
+  uncategorizedOpt.textContent = 'Sem categoria';
+  select.appendChild(uncategorizedOpt);
+
+  select.value = currentVal || 'all';
+}
+
+// ----------------------------------------------------------------------------
+// INICIALIZAÇÃO DE EVENTOS DO CATÁLOGO PÚBLICO
+// ----------------------------------------------------------------------------
+
+function initCatalogEvents() {
+  const searchInput = document.getElementById('catalog-search-input');
+  const clearSearchBtn = document.getElementById('catalog-clear-search');
+  let debounceTimeout = null;
+
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const val = e.target.value;
+      if (clearSearchBtn) {
+        clearSearchBtn.style.display = val.trim().length > 0 ? 'inline-block' : 'none';
+      }
+
+      clearTimeout(debounceTimeout);
+      debounceTimeout = setTimeout(() => {
+        publicCatalogFilters.search = val;
+        renderPublicCatalog();
+      }, 150);
+    });
+  }
+
+  if (clearSearchBtn) {
+    clearSearchBtn.addEventListener('click', () => {
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
+      clearSearchBtn.style.display = 'none';
+      publicCatalogFilters.search = '';
+      renderPublicCatalog();
+    });
+  }
+
+  const catSelect = document.getElementById('catalog-filter-category');
+  if (catSelect) {
+    catSelect.addEventListener('change', (e) => {
+      publicCatalogFilters.category = e.target.value;
+      renderPublicCatalog();
+    });
+  }
+
+  const stockSelect = document.getElementById('catalog-filter-stock');
+  if (stockSelect) {
+    stockSelect.addEventListener('change', (e) => {
+      publicCatalogFilters.stock = e.target.value;
+      renderPublicCatalog();
+    });
+  }
+
+  const sortSelect = document.getElementById('catalog-sort');
+  if (sortSelect) {
+    sortSelect.addEventListener('change', (e) => {
+      publicCatalogFilters.sort = e.target.value;
+      renderPublicCatalog();
+    });
+  }
+
+  const resetBtn = document.getElementById('catalog-reset-filters');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      resetPublicCatalogFilters();
+    });
+  }
+
+  // Cliques na grade de produtos (Abrir detalhes ou limpar filtros do estado vazio)
+  const grid = document.getElementById('products-grid');
+  if (grid) {
+    grid.addEventListener('click', (e) => {
+      const detailBtn = e.target.closest('.btn-card-details');
+      if (detailBtn) {
+        const id = detailBtn.getAttribute('data-detail-id');
+        if (id) openProductDetailModal(id);
+        return;
+      }
+
+      const resetEmptyBtn = e.target.closest('.btn-reset-from-empty');
+      if (resetEmptyBtn) {
+        resetPublicCatalogFilters();
+      }
+    });
+  }
+
+  // Modal de Detalhes
+  const modalEl = document.getElementById('product-detail-modal');
+  const closeBtn = document.getElementById('modal-product-close');
+  const closeActionBtn = document.getElementById('modal-product-close-btn');
+
+  if (closeBtn) closeBtn.addEventListener('click', closeProductDetailModal);
+  if (closeActionBtn) closeActionBtn.addEventListener('click', closeProductDetailModal);
+
+  if (modalEl) {
+    modalEl.addEventListener('click', (e) => {
+      if (e.target === modalEl) closeProductDetailModal();
+    });
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modalEl && modalEl.style.display === 'flex') {
+      closeProductDetailModal();
+    }
+  });
+}
+
+/**
+ * Carrega e renderiza os produtos reais da tabela public.products.
+ */
+async function loadCatalog() {
+  const subtitle = document.getElementById('products-subtitle');
+  if (subtitle) subtitle.textContent = 'Carregando produtos do Supabase...';
+
+  const [productsRes, categoriesRes] = await Promise.all([
+    fetchProductsFromSupabase(),
+    fetchCategoriesFromSupabase()
+  ]);
+
+  if (categoriesRes.success) {
+    publicCatalogCategories = categoriesRes.data || [];
+    populateCategorySelect();
+  }
+
+  if (productsRes.success) {
+    publicCatalogProducts = productsRes.data || [];
+    console.info(`✅ [MascotCar] Catálogo Supabase carregado! ${publicCatalogProducts.length} produtos ativos.`);
+    renderPublicCatalog();
+  } else {
+    console.warn('⚠️ [MascotCar] Não foi possível obter os produtos de public.products:', productsRes.error?.message || productsRes.error);
+    if (subtitle) {
+      subtitle.textContent = '⚠️ Não foi possível carregar os produtos do catálogo no momento.';
     }
   }
 }
@@ -213,10 +657,16 @@ window.MascotCarData = {
   client: supabaseClient,
   getProducts: fetchProductsFromSupabase,
   getCategories: fetchCategoriesFromSupabase,
-  loadCatalog: loadCatalog
+  loadCatalog: loadCatalog,
+  renderCatalog: renderPublicCatalog,
+  setCategoryFilter: setCategoryFilter,
+  resetFilters: resetPublicCatalogFilters,
+  openDetailModal: openProductDetailModal,
+  closeDetailModal: closeProductDetailModal
 };
 
 // Executa o carregamento quando o DOM estiver pronto
 document.addEventListener('DOMContentLoaded', () => {
+  initCatalogEvents();
   loadCatalog();
 });

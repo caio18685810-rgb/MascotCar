@@ -174,7 +174,61 @@
         <div class="section-header">
           <span class="section-badge">Catálogo</span>
           <h2 class="section-title">Nossos Produtos</h2>
-          <p class="section-subtitle">⚠️ Conteúdo demonstrativo — produtos e preços não são reais</p>
+          <p class="section-subtitle" id="products-subtitle">Carregando catálogo...</p>
+        </div>
+
+        <!-- Barra de Busca e Filtros Públicos (Etapa 3H) -->
+        <div class="public-catalog-toolbar" id="catalog-toolbar">
+          <div class="catalog-search-wrap">
+            <span class="catalog-search-icon" aria-hidden="true">🔍</span>
+            <input
+              type="text"
+              id="catalog-search-input"
+              class="catalog-search-input"
+              placeholder="Buscar mascotes por nome ou descrição..."
+              aria-label="Buscar produtos no catálogo"
+              autocomplete="off"
+            />
+            <button type="button" id="catalog-clear-search" class="catalog-clear-btn" aria-label="Limpar busca" style="display: none;">✕</button>
+          </div>
+
+          <div class="catalog-filters-wrap">
+            <div class="catalog-filter-group">
+              <label for="catalog-filter-category" class="sr-only">Filtrar por Categoria</label>
+              <select id="catalog-filter-category" class="catalog-select" aria-label="Filtrar por Categoria">
+                <option value="all">Todas as Categorias</option>
+              </select>
+            </div>
+
+            <div class="catalog-filter-group">
+              <label for="catalog-filter-stock" class="sr-only">Filtrar por Disponibilidade</label>
+              <select id="catalog-filter-stock" class="catalog-select" aria-label="Filtrar por Disponibilidade">
+                <option value="all">Disponibilidade (Todas)</option>
+                <option value="in-stock">Em Estoque</option>
+                <option value="out-of-stock">Esgotados</option>
+              </select>
+            </div>
+
+            <div class="catalog-filter-group">
+              <label for="catalog-sort" class="sr-only">Ordenar Produtos</label>
+              <select id="catalog-sort" class="catalog-select" aria-label="Ordenar Produtos">
+                <option value="recent">Mais Recentes</option>
+                <option value="name-asc">Nome (A – Z)</option>
+                <option value="name-desc">Nome (Z – A)</option>
+                <option value="price-asc">Menor Preço</option>
+                <option value="price-desc">Maior Preço</option>
+              </select>
+            </div>
+
+            <button type="button" id="catalog-reset-filters" class="btn btn--outline btn--sm catalog-reset-btn" title="Limpar todos os filtros">
+              Limpar Filtros
+            </button>
+          </div>
+        </div>
+
+        <!-- Feedback de Contagem e Estado -->
+        <div class="catalog-meta-bar" id="catalog-meta-bar">
+          <span class="catalog-count-badge" id="catalog-count-badge">Carregando produtos...</span>
         </div>
 
         <div class="products__grid" id="products-grid">
@@ -519,6 +573,51 @@
 
   <!-- Back to top button -->
   <button class="back-to-top" id="backToTop" aria-label="Voltar ao topo">↑</button>
+
+  <!-- ========== MODAL DE DETALHES DO PRODUTO (Etapa 3H) ========== -->
+  <div class="product-modal-backdrop" id="product-detail-modal" role="dialog" aria-modal="true" aria-labelledby="modal-product-title" style="display: none;">
+    <div class="product-modal-card">
+      <button type="button" class="product-modal-close" id="modal-product-close" aria-label="Fechar detalhes do produto">✕</button>
+
+      <div class="product-modal-grid">
+        <div class="product-modal-media" id="modal-product-media-container">
+          <!-- Imagem ou Placeholder injetado via JS -->
+        </div>
+
+        <div class="product-modal-info">
+          <div class="product-modal-header">
+            <span class="product-card__category" id="modal-product-category">Categoria</span>
+            <div class="product-modal-badge" id="modal-product-badge">Em Estoque</div>
+          </div>
+
+          <h2 class="product-modal-title" id="modal-product-title">Nome do Produto</h2>
+          <div class="product-modal-price" id="modal-product-price">R$ 0,00</div>
+
+          <div class="product-modal-divider"></div>
+
+          <div class="product-modal-section">
+            <h3 class="product-modal-section-title">Descrição</h3>
+            <p class="product-modal-desc" id="modal-product-desc">Descrição completa do aromatizador veicular.</p>
+          </div>
+
+          <div class="product-modal-section">
+            <div class="product-modal-meta">
+              <span class="product-modal-meta-item" id="modal-product-stock">📦 Estoque: 0 un.</span>
+            </div>
+          </div>
+
+          <div class="product-modal-actions">
+            <a href="#" class="btn btn--primary btn--lg product-modal-btn-contact" id="modal-product-whatsapp" target="_blank" rel="noopener noreferrer">
+              💬 Consultar no WhatsApp
+            </a>
+            <button type="button" class="btn btn--outline btn--lg" id="modal-product-close-btn">
+              Voltar ao Catálogo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Supabase JS (Cliente Oficial via CDN para navegadores) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
