@@ -880,33 +880,272 @@ body {
   margin-bottom: 0.25rem;
 }
 
-.edit-image-preview-thumb {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.05);
+/* Miniatura interativa na tabela */
+.product-thumb-clickable {
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.product-thumb-clickable:hover {
+  transform: scale(1.06);
+  border-color: var(--primary);
+  box-shadow: 0 0 10px rgba(255, 87, 34, 0.3);
+}
+
+.product-thumb-clickable::after {
+  content: '🔍';
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  font-size: 0.65rem;
+  background: rgba(11, 15, 25, 0.85);
+  border-radius: 4px;
+  padding: 1px 3px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.product-thumb-clickable:hover::after {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Visualizador e Galeria de Imagens no Modal de Edição (Etapa 3D)
+   -------------------------------------------------------------------------- */
+.product-image-viewer {
+  background: var(--bg-input);
   border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.image-viewer-stage {
+  height: 220px;
+  background: radial-gradient(circle at center, #151c2c 0%, #0b0f19 80%);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   overflow: hidden;
-  flex-shrink: 0;
 }
 
-.edit-image-preview-thumb img {
+.image-viewer-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: zoom-in;
+  transition: transform 0.2s ease;
+}
+
+.image-viewer-stage img:hover {
+  transform: scale(1.02);
+}
+
+.image-viewer-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-dim);
+}
+
+.image-viewer-placeholder .icon {
+  font-size: 2.75rem;
+  opacity: 0.7;
+}
+
+.image-viewer-placeholder span {
+  font-size: 0.85rem;
+}
+
+/* Selos de Identificação da Imagem */
+.image-badge-primary {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.02em;
+}
+
+.image-badge-secondary {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  background: rgba(15, 20, 34, 0.85);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.image-zoom-hint {
+  position: absolute;
+  bottom: 0.75rem;
+  right: 0.75rem;
+  background: rgba(11, 15, 25, 0.8);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.image-zoom-hint:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+/* Tira de Miniaturas da Galeria */
+.image-viewer-gallery {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.gallery-thumb {
+  width: 54px;
+  height: 54px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background: var(--bg-card);
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  position: relative;
+  transition: var(--transition);
+}
+
+.gallery-thumb:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.gallery-thumb.is-active {
+  border-color: var(--primary);
+  box-shadow: 0 0 8px rgba(255, 87, 34, 0.4);
+}
+
+.gallery-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.edit-image-preview-info {
-  font-size: 0.8125rem;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-
-.edit-image-preview-info strong {
   display: block;
-  color: var(--text-main);
-  font-size: 0.875rem;
 }
+
+.gallery-thumb .thumb-star {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.6rem;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+
+/* --------------------------------------------------------------------------
+   Lightbox Modal (Ampliação de Imagem)
+   -------------------------------------------------------------------------- */
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(5, 8, 15, 0.93);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.lightbox-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 90vw;
+  max-height: 88vh;
+  position: relative;
+  animation: slideUp 0.2s ease-out;
+}
+
+.lightbox-img {
+  max-width: 88vw;
+  max-height: 76vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.85), 0 0 0 1px var(--border);
+  background: #000;
+}
+
+.lightbox-caption {
+  margin-top: 1rem;
+  color: var(--text-main);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(15, 20, 34, 0.8);
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.lightbox-close-btn {
+  position: absolute;
+  top: 1.5rem;
+  right: 2rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-size: 2rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  transition: var(--transition);
+  z-index: 310;
+}
+
+.lightbox-close-btn:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  transform: rotate(90deg);
+}
+

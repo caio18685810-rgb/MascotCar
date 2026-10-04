@@ -1,19 +1,19 @@
 /**
  * MascotCar — Gestão e Listagem de Produtos no Painel Administrativo
- * Responsável por buscar, renderizar, cadastrar e editar produtos na tabela public.products.
+ * Responsável por buscar, renderizar, cadastrar, editar e visualizar imagens dos produtos.
  *
  * ⚠️ SEGURANÇA E REGRAS:
  * - Reutiliza a instância autenticada de window.supabaseClient.
  * - Respeita o RLS e a função is_admin() no banco.
  * - Não utiliza chaves secretas ou service_role.
- * - Na edição, image_url NUNCA é alterada e nenhuma operação no Storage é realizada.
- * - Não permite exclusão de produtos (DELETE).
+ * - Não executa DELETE ou UPDATE de arquivos no Storage nesta etapa.
+ * - Não altera tabelas ou schemas no Supabase.
  */
 
 'use strict';
 
 (function () {
-  // Armazena em memória os produtos carregados para acesso rápido na edição
+  // Armazena em memória os produtos carregados para acesso rápido na edição e visualização
   let loadedProducts = [];
 
   /**
@@ -147,6 +147,59 @@
   }
 
   /**
+   * Busca todas as imagens associadas ao produto:
+   * 1. A imagem principal registrada em products.image_url.
+   * 2. Outras imagens associadas no bucket products que correspondam ao ID do produto.
+   *
+   * @param {string} productId
+   * @param {string|null} primaryUrl
+   * @returns {Promise<Array<{url: string, isPrimary: boolean, name: string}>>}
+   */
+  async function fetchProductImages(productId, primaryUrl) {
+    const client = getClient();
+    const images = [];
+
+    // Adiciona a imagem principal cadastrada
+    if (primaryUrl && typeof primaryUrl === 'string' && primaryUrl.trim() !== '') {
+      images.push({
+        url: primaryUrl.trim(),
+        isPrimary: true,
+        name: 'Imagem Principal'
+      });
+    }
+
+    // Busca arquivos no bucket que comecem com o identificador do produto
+    if (client && productId) {
+      try {
+        const { data: files, error } = await client.storage
+          .from('products')
+          .list('', { search: `prod-${productId}` });
+
+        if (!error && Array.isArray(files)) {
+          files.forEach((file) => {
+            const { data: urlData } = client.storage
+              .from('products')
+              .getPublicUrl(file.name);
+            const fileUrl = urlData?.publicUrl;
+            // Evita duplicar se for idêntica à URL principal
+            if (fileUrl && (!primaryUrl || fileUrl.trim() !== primaryUrl.trim())) {
+              images.push({
+                url: fileUrl,
+                isPrimary: false,
+                name: file.name
+              });
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('⚠️ [MascotCar] Erro ao listar imagens associadas no Storage:', err);
+      }
+    }
+
+    return images;
+  }
+
+  /**
    * Controla a exibição dos estados da seção de produtos.
    */
   const UI = {
@@ -214,15 +267,29 @@
         ? '<span class="stock-badge stock-zero">0 un. (Esgotado)</span>'
         : `<span class="stock-badge stock-ok">${stockNum} un.</span>`;
 
+      // Miniatura clicável para abrir no Lightbox
+      const thumbHtml = hasImage
+        ? `<div 
+            class="product-thumb product-thumb-clickable" 
+            data-lightbox-url="${imageUrl}" 
+            data-lightbox-title="${escapeHtml(prod.name || 'Produto')}" 
+            data-lightbox-badge="Imagem Principal" 
+            title="Clique para ampliar a imagem"
+          >
+            <img 
+              src="${imageUrl}" 
+              alt="${escapeHtml(prod.name || 'Produto')}" 
+              loading="lazy" 
+              onerror="this.onerror=null; this.parentElement.classList.remove('product-thumb-clickable'); this.parentElement.innerHTML='<span class=\\'thumb-placeholder\\'>🚗</span>';"
+            >
+          </div>`
+        : `<div class="product-thumb" title="Sem imagem cadastrada">
+            <span class="thumb-placeholder">🚗</span>
+          </div>`;
+
       tr.innerHTML = `
         <td class="col-thumb">
-          <div class="product-thumb">
-            ${
-              hasImage
-                ? `<img src="${imageUrl}" alt="${escapeHtml(prod.name)}" loading="lazy" onerror="this.onerror=null; this.parentElement.innerHTML='<span class=\\'thumb-placeholder\\'>🚗</span>';">`
-                : '<span class="thumb-placeholder">🚗</span>'
-            }
-          </div>
+          ${thumbHtml}
         </td>
         <td class="col-name">
           <strong class="product-name">${escapeHtml(prod.name || 'Sem nome')}</strong>
@@ -289,6 +356,52 @@
 
     renderProductsTable(products);
     UI.showOnly('content');
+  }
+
+  // --------------------------------------------------------------------------
+  // Controle do Lightbox Modal (Etapa 3D)
+  // --------------------------------------------------------------------------
+
+  function getLightboxElements() {
+    return {
+      modal: document.getElementById('image-lightbox-modal'),
+      img: document.getElementById('lightbox-img'),
+      caption: document.getElementById('lightbox-caption'),
+      closeBtn: document.getElementById('lightbox-close-btn')
+    };
+  }
+
+  /**
+   * Abre o Lightbox para exibição em tamanho grande.
+   * @param {string} url
+   * @param {string} title
+   * @param {string} badgeText
+   */
+  function openLightbox(url, title = 'Produto', badgeText = '') {
+    const { modal, img, caption } = getLightboxElements();
+    if (!modal || !img || !url) return;
+
+    img.src = url;
+    img.alt = title;
+
+    if (caption) {
+      caption.innerHTML = `
+        ${badgeText ? `<span class="image-badge-primary" style="position: static; font-size: 0.7rem; padding: 0.2rem 0.5rem;">${escapeHtml(badgeText)}</span>` : ''}
+        <span>${escapeHtml(title)}</span>
+      `;
+    }
+
+    modal.style.display = 'flex';
+  }
+
+  /**
+   * Fecha o Lightbox modal.
+   */
+  function closeLightbox() {
+    const { modal, img } = getLightboxElements();
+    if (!modal) return;
+    modal.style.display = 'none';
+    if (img) img.src = '';
   }
 
   // --------------------------------------------------------------------------
@@ -569,7 +682,7 @@
   }
 
   // --------------------------------------------------------------------------
-  // Controle do Modal de Edição de Produto (Etapa 3C)
+  // Controle do Modal de Edição de Produto (Etapas 3C e 3D)
   // --------------------------------------------------------------------------
 
   function getEditModalElements() {
@@ -585,7 +698,7 @@
       stockInput: document.getElementById('edit-stock'),
       categorySelect: document.getElementById('edit-category'),
       activeCheckbox: document.getElementById('edit-active'),
-      imagePreviewContainer: document.getElementById('edit-image-preview-container')
+      imageViewerContainer: document.getElementById('product-image-viewer')
     };
   }
 
@@ -604,6 +717,102 @@
   }
 
   /**
+   * Renderiza o componente de visualização e galeria de imagens no modal de edição.
+   * @param {Array<{url: string, isPrimary: boolean, name: string}>} images
+   * @param {string} productName
+   */
+  function renderImageViewer(images, productName) {
+    const { imageViewerContainer } = getEditModalElements();
+    if (!imageViewerContainer) return;
+
+    if (!images || images.length === 0) {
+      imageViewerContainer.innerHTML = `
+        <div class="image-viewer-stage">
+          <div class="image-viewer-placeholder">
+            <span class="icon">🚗</span>
+            <span>Nenhuma imagem vinculada a este produto.</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Inicialmente, a imagem ativa é a principal (primeira do array)
+    let activeIndex = 0;
+
+    function updateStage() {
+      const activeImg = images[activeIndex];
+      const badgeText = activeImg.isPrimary ? '★ Imagem Principal' : 'Imagem Adicional';
+      const badgeClass = activeImg.isPrimary ? 'image-badge-primary' : 'image-badge-secondary';
+
+      let galleryHtml = '';
+      if (images.length > 1) {
+        galleryHtml = `
+          <div class="image-viewer-gallery" role="tablist" aria-label="Galeria de imagens do produto">
+            ${images
+              .map(
+                (img, idx) => `
+                <button 
+                  type="button" 
+                  class="gallery-thumb ${idx === activeIndex ? 'is-active' : ''}" 
+                  data-gallery-idx="${idx}"
+                  title="${escapeHtml(img.isPrimary ? 'Imagem Principal' : 'Imagem ' + (idx + 1))}"
+                >
+                  <img src="${escapeHtml(img.url)}" alt="${escapeHtml(productName)}" onerror="this.onerror=null; this.parentElement.innerHTML='🚗';">
+                  ${img.isPrimary ? '<span class="thumb-star" title="Principal">★</span>' : ''}
+                </button>
+              `
+              )
+              .join('')}
+          </div>
+        `;
+      }
+
+      imageViewerContainer.innerHTML = `
+        <div class="image-viewer-stage">
+          <span class="${badgeClass}">${badgeText}</span>
+          <img 
+            id="image-stage-current" 
+            src="${escapeHtml(activeImg.url)}" 
+            alt="${escapeHtml(productName)}" 
+            title="Clique para ver em tamanho maior"
+            onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'image-viewer-placeholder\\'><span class=\\'icon\\'>🚗</span><span>Erro ao carregar imagem.</span></div>';"
+          >
+          <button type="button" class="image-zoom-hint" id="btn-zoom-stage" title="Ampliar imagem">
+            <span>🔍 Ampliar</span>
+          </button>
+        </div>
+        ${galleryHtml}
+      `;
+
+      // Evento de zoom na imagem do palco
+      const stageImg = document.getElementById('image-stage-current');
+      const zoomBtn = document.getElementById('btn-zoom-stage');
+      const triggerZoom = () => {
+        openLightbox(activeImg.url, productName, badgeText);
+      };
+
+      if (stageImg) stageImg.addEventListener('click', triggerZoom);
+      if (zoomBtn) zoomBtn.addEventListener('click', triggerZoom);
+
+      // Evento de troca de miniatura na galeria
+      const galleryButtons = imageViewerContainer.querySelectorAll('.gallery-thumb');
+      galleryButtons.forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const idx = parseInt(btn.getAttribute('data-gallery-idx'), 10);
+          if (!isNaN(idx) && idx !== activeIndex) {
+            activeIndex = idx;
+            updateStage();
+          }
+        });
+      });
+    }
+
+    updateStage();
+  }
+
+  /**
    * Abre o modal de edição e carrega os dados atuais do produto selecionado.
    * @param {string} productId
    */
@@ -618,7 +827,7 @@
       stockInput,
       categorySelect,
       activeCheckbox,
-      imagePreviewContainer
+      imageViewerContainer
     } = getEditModalElements();
 
     if (!modal) return;
@@ -646,36 +855,26 @@
       categorySelect.value = prod.category_id;
     }
 
-    // Exibe a prévia somente leitura da imagem atual (sem operações de Storage)
-    if (imagePreviewContainer) {
-      const hasImage = Boolean(prod.image_url && typeof prod.image_url === 'string' && prod.image_url.trim() !== '');
-      if (hasImage) {
-        imagePreviewContainer.innerHTML = `
-          <div class="edit-image-preview-thumb">
-            <img src="${escapeHtml(prod.image_url.trim())}" alt="${escapeHtml(prod.name)}" onerror="this.onerror=null; this.parentElement.innerHTML='🚗';">
+    // Estado inicial de carregamento da imagem
+    if (imageViewerContainer) {
+      imageViewerContainer.innerHTML = `
+        <div class="image-viewer-stage">
+          <div class="image-viewer-placeholder">
+            <div class="spinner" style="width: 24px; height: 24px;"></div>
+            <span>Carregando visualização da imagem...</span>
           </div>
-          <div class="edit-image-preview-info">
-            <strong>Imagem Cadastrada</strong>
-            <span>A imagem atual está preservada e não será modificada nesta etapa.</span>
-          </div>
-        `;
-      } else {
-        imagePreviewContainer.innerHTML = `
-          <div class="edit-image-preview-thumb" style="font-size: 1.5rem;">
-            🚗
-          </div>
-          <div class="edit-image-preview-info">
-            <strong>Sem Imagem</strong>
-            <span>Este produto não possui imagem vinculada.</span>
-          </div>
-        `;
-      }
+        </div>
+      `;
     }
 
     modal.style.display = 'flex';
     if (nameInput) {
       setTimeout(() => nameInput.focus(), 50);
     }
+
+    // Busca assíncrona das imagens do produto (principal + Storage)
+    const images = await fetchProductImages(prod.id, prod.image_url);
+    renderImageViewer(images, prod.name || 'Produto');
   }
 
   function closeEditModal() {
@@ -798,7 +997,7 @@
   }
 
   /**
-   * Inicializa os ouvintes de eventos da seção de produtos e dos modais.
+   * Inicializa os ouvintes de eventos da seção de produtos, modais e visualizador.
    */
   function init() {
     // Botões de recarregar listagem
@@ -845,24 +1044,39 @@
     }
 
     // ------------------------------------------------------------------------
-    // Eventos do Modal de Edição (Etapa 3C)
+    // Eventos da Tabela de Produtos (Edição e Lightbox)
     // ------------------------------------------------------------------------
 
-    // Delegação de evento para os botões "✏️ Editar" na tabela de produtos
     const tableBodyEl = document.getElementById('products-table-body');
     if (tableBodyEl) {
       tableBodyEl.addEventListener('click', (e) => {
+        // Clique no botão Editar
         const editBtn = e.target.closest('.btn-edit-product');
         if (editBtn) {
           const productId = editBtn.getAttribute('data-id');
           if (productId) {
             openEditModal(productId);
           }
+          return;
+        }
+
+        // Clique na miniatura para abrir no Lightbox
+        const thumbClickable = e.target.closest('.product-thumb-clickable');
+        if (thumbClickable) {
+          const url = thumbClickable.getAttribute('data-lightbox-url');
+          const title = thumbClickable.getAttribute('data-lightbox-title') || 'Produto';
+          const badge = thumbClickable.getAttribute('data-lightbox-badge') || 'Imagem Principal';
+          if (url) {
+            openLightbox(url, title, badge);
+          }
         }
       });
     }
 
-    // Botões de fechar e cancelar edição
+    // ------------------------------------------------------------------------
+    // Eventos do Modal de Edição (Etapa 3C)
+    // ------------------------------------------------------------------------
+
     const closeEditModalBtn = document.getElementById('btn-close-edit-modal');
     if (closeEditModalBtn) {
       closeEditModalBtn.addEventListener('click', () => closeEditModal());
@@ -873,7 +1087,6 @@
       cancelEditModalBtn.addEventListener('click', () => closeEditModal());
     }
 
-    // Fechar Modal de Edição ao clicar no backdrop
     const editModalEl = document.getElementById('modal-edit-product');
     if (editModalEl) {
       editModalEl.addEventListener('click', (e) => {
@@ -883,15 +1096,38 @@
       });
     }
 
-    // Envio do formulário de edição
     const editFormEl = document.getElementById('form-edit-product');
     if (editFormEl) {
       editFormEl.addEventListener('submit', handleEditProductSubmit);
     }
 
-    // Fechar qualquer modal ativo ao pressionar tecla Escape
+    // ------------------------------------------------------------------------
+    // Eventos do Lightbox Modal (Etapa 3D)
+    // ------------------------------------------------------------------------
+
+    const lightboxModal = document.getElementById('image-lightbox-modal');
+    const lightboxCloseBtn = document.getElementById('lightbox-close-btn');
+
+    if (lightboxCloseBtn) {
+      lightboxCloseBtn.addEventListener('click', () => closeLightbox());
+    }
+
+    if (lightboxModal) {
+      lightboxModal.addEventListener('click', (e) => {
+        if (e.target === lightboxModal) {
+          closeLightbox();
+        }
+      });
+    }
+
+    // Fechar modais ao pressionar tecla Escape (com prioridade para o Lightbox)
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (lightboxModal && lightboxModal.style.display === 'flex') {
+          closeLightbox();
+          return;
+        }
+
         const editModal = document.getElementById('modal-edit-product');
         if (editModal && editModal.style.display === 'flex') {
           closeEditModal();
@@ -916,6 +1152,8 @@
     openCreateModal,
     closeCreateModal,
     openEditModal,
-    closeEditModal
+    closeEditModal,
+    openLightbox,
+    closeLightbox
   };
 })();

@@ -265,13 +265,13 @@
             <!-- ID oculto do produto -->
             <input type="hidden" id="edit-id">
 
-            <!-- Prévia somente leitura da Imagem -->
+            <!-- Prévia e Galeria de Imagens (Etapa 3D) -->
             <div class="form-group">
-              <label class="form-label">Imagem do Produto</label>
-              <div id="edit-image-preview-container" class="edit-image-preview-box">
+              <label class="form-label">Visualização da Imagem</label>
+              <div id="product-image-viewer" class="product-image-viewer">
                 <!-- Preenchido dinamicamente por products.js -->
               </div>
-              <span class="form-help">A imagem não pode ser alterada ou removida nesta etapa.</span>
+              <span class="form-help">A imagem não pode ser alterada ou removida nesta etapa. Clique para ampliar.</span>
             </div>
 
             <div class="form-group">
@@ -347,6 +347,15 @@
               </button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <!-- 7. Lightbox para Visualização Ampliada de Imagens (Etapa 3D) -->
+      <div id="image-lightbox-modal" class="lightbox-overlay" style="display: none;" role="dialog" aria-modal="true" aria-label="Visualizador de Imagem Ampliada">
+        <button type="button" id="lightbox-close-btn" class="lightbox-close-btn" aria-label="Fechar ampliação">&times;</button>
+        <div class="lightbox-content">
+          <img id="lightbox-img" class="lightbox-img" src="" alt="Imagem ampliada do produto">
+          <div id="lightbox-caption" class="lightbox-caption"></div>
         </div>
       </div>
     </main>
