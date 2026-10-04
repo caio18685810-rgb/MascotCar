@@ -699,7 +699,8 @@
       categorySelect: document.getElementById('edit-category'),
       activeCheckbox: document.getElementById('edit-active'),
       imageViewerContainer: document.getElementById('product-image-viewer'),
-      btnRemoveImage: document.getElementById('btn-remove-image')
+      btnRemoveImage: document.getElementById('btn-remove-image'),
+      imageInput: document.getElementById('edit-image')
     };
   }
 
@@ -873,8 +874,11 @@
       setTimeout(() => nameInput.focus(), 50);
     }
 
-    // Configura o botão "Remover Imagem" (Etapa 3E — Fase 2)
-    const { btnRemoveImage } = getEditModalElements();
+    // Configura o botão "Remover Imagem" (Etapa 3E — Fase 2) e limpa seleção de nova imagem (Fase 3)
+    const { btnRemoveImage, imageInput } = getEditModalElements();
+    if (imageInput) {
+      imageInput.value = '';
+    }
     const hasImage = Boolean(prod.image_url && typeof prod.image_url === 'string' && prod.image_url.trim() !== '');
     if (btnRemoveImage) {
       btnRemoveImage.style.display = hasImage ? 'inline-flex' : 'none';
@@ -888,10 +892,11 @@
   }
 
   function closeEditModal() {
-    const { modal, form, btnRemoveImage } = getEditModalElements();
+    const { modal, form, btnRemoveImage, imageInput } = getEditModalElements();
     if (!modal) return;
     modal.style.display = 'none';
     if (form) form.reset();
+    if (imageInput) imageInput.value = '';
     if (btnRemoveImage) {
       btnRemoveImage.style.display = 'none';
       btnRemoveImage.disabled = false;
@@ -949,7 +954,7 @@
    * 5. Atualização da interface e listagem.
    */
   async function handleRemoveProductImage() {
-    const { idInput, btnRemoveImage, submitBtn } = getEditModalElements();
+    const { idInput, btnRemoveImage, submitBtn, imageInput } = getEditModalElements();
     const productId = idInput ? idInput.value : '';
 
     if (!productId) {
@@ -1034,6 +1039,10 @@
       prod.image_url = null;
       renderImageViewer([], prod.name || 'Produto');
 
+      if (imageInput) {
+        imageInput.value = '';
+      }
+
       if (btnRemoveImage) {
         btnRemoveImage.style.display = 'none';
         btnRemoveImage.disabled = false;
@@ -1065,7 +1074,18 @@
   /**
    * Trata a submissão do formulário de edição de produtos.
    * Utiliza exclusivamente a policy de UPDATE administrativa já existente no Supabase.
-   * NUNCA altera image_url e NUNCA faz chamadas ao Storage.
+   * Implementa fluxo seguro de substituição de imagem (Etapa 3E — Fase 3):
+   * 1. Validação dos dados e do formato/tamanho da nova imagem (se selecionada).
+   * 2. Upload da NOVA imagem primeiro com nome único prod-${productId}-${timestamp}.${ext} (sem upsert).
+   * 3. Imagem antiga NÃO é tocada até a confirmação de sucesso do banco.
+   * 4. Se o upload falhar: mantém a imagem anterior e não altera o banco.
+   * 5. Atualização de products no banco (incluindo image_url com a nova URL pública).
+   * 6. Se o UPDATE no banco falhar: remove apenas a NOVA imagem do Storage (rollback limpo) e mantém a antiga.
+   * 7. Somente após o UPDATE com sucesso no banco: tenta remover a imagem antiga do Storage:
+   *    - Bloqueia remoção do arquivo legado protegido 'produto teste.webp'.
+   *    - Exige que o arquivo siga o padrão prod-${productId}-...
+   *    - Se a remoção da antiga falhar: NÃO desfaz o banco e exibe aviso informativo ao administrador.
+   * 8. Atualiza a interface, o visualizador de imagens e a listagem.
    */
   async function handleEditProductSubmit(e) {
     e.preventDefault();
@@ -1085,6 +1105,8 @@
       stockInput,
       categorySelect,
       activeCheckbox,
+      imageInput,
+      btnRemoveImage,
       submitBtn
     } = getEditModalElements();
 
@@ -1094,39 +1116,97 @@
       return;
     }
 
+    const prod = loadedProducts.find((p) => p.id === productId);
+    const oldImageUrl = prod ? prod.image_url : null;
+
     const name = nameInput ? nameInput.value.trim() : '';
     const description = descInput ? descInput.value.trim() : '';
     const price = priceInput ? priceInput.value : '';
     const stock = stockInput ? stockInput.value : '';
     const categoryId = categorySelect && categorySelect.value ? categorySelect.value : null;
     const isActive = activeCheckbox ? activeCheckbox.checked : false;
+    const newImageFile = imageInput && imageInput.files && imageInput.files[0] ? imageInput.files[0] : null;
 
-    // 1. Validação no frontend
-    if (!name) {
-      showEditModalAlert('O nome do produto é obrigatório.', 'error');
+    // 1. Validação dos dados no frontend (campos e nova imagem)
+    const validation = validateFormData({ name, price, stock, imageFile: newImageFile });
+    if (!validation.isValid) {
+      showEditModalAlert(validation.error, 'error');
       return;
     }
 
     const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum <= 0) {
-      showEditModalAlert('O preço deve ser um valor numérico maior que zero.', 'error');
-      return;
-    }
+    const stockNum = parseInt(stock, 10);
 
-    const stockNum = Number(stock);
-    if (isNaN(stockNum) || !Number.isInteger(stockNum) || stockNum < 0) {
-      showEditModalAlert('O estoque deve ser um número inteiro maior ou igual a zero.', 'error');
-      return;
-    }
-
-    // 2. Feedback de carregamento
+    // 2. Feedback visual de carregamento
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerHTML = '<span>Salvando alterações...</span>';
+      submitBtn.innerHTML = newImageFile
+        ? '<span>Enviando nova imagem...</span>'
+        : '<span>Salvando alterações...</span>';
+    }
+    if (btnRemoveImage) {
+      btnRemoveImage.disabled = true;
     }
 
+    let newSafePath = null;
+    let newPublicUrl = null;
+
     try {
-      // 3. Monta o payload SOMENTE com os campos permitidos (sem image_url)
+      // 3. Se houver nova imagem selecionada, realiza upload da NOVA imagem primeiro
+      if (newImageFile) {
+        const ext = newImageFile.name.split('.').pop().toLowerCase();
+        newSafePath = `prod-${productId}-${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await client.storage
+          .from('products')
+          .upload(newSafePath, newImageFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('❌ [MascotCar Storage] Falha no upload da nova imagem:', uploadError);
+          showEditModalAlert(
+            `Falha no upload da nova imagem: ${uploadError.message}. A imagem anterior e os dados foram mantidos.`,
+            'error'
+          );
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<span>Salvar Alterações</span>';
+          }
+          if (btnRemoveImage && oldImageUrl) {
+            btnRemoveImage.disabled = false;
+          }
+          return;
+        }
+
+        // Obtém a URL pública da nova imagem
+        const { data: publicUrlData } = client.storage
+          .from('products')
+          .getPublicUrl(newSafePath);
+
+        newPublicUrl = publicUrlData?.publicUrl || null;
+
+        if (!newPublicUrl) {
+          console.error('❌ [MascotCar Storage] Não foi possível obter URL pública da nova imagem.');
+          // Remove a nova imagem recém-enviada para não deixar arquivo órfão
+          await client.storage.from('products').remove([newSafePath]);
+          showEditModalAlert(
+            'Falha ao obter URL pública da nova imagem. A alteração foi cancelada e a imagem anterior mantida.',
+            'error'
+          );
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<span>Salvar Alterações</span>';
+          }
+          if (btnRemoveImage && oldImageUrl) {
+            btnRemoveImage.disabled = false;
+          }
+          return;
+        }
+      }
+
+      // 4. Monta o payload de atualização
       const updatePayload = {
         name,
         description: description || null,
@@ -1136,7 +1216,15 @@
         active: Boolean(isActive)
       };
 
-      // 4. Executa UPDATE usando a sessão autenticada e as policies existentes
+      if (newPublicUrl) {
+        updatePayload.image_url = newPublicUrl;
+      }
+
+      if (submitBtn) {
+        submitBtn.innerHTML = '<span>Salvando dados no banco...</span>';
+      }
+
+      // 5. Executa UPDATE usando a sessão autenticada do administrador
       const { error: updateError } = await client
         .from('products')
         .update(updatePayload)
@@ -1144,24 +1232,114 @@
 
       if (updateError) {
         console.error('❌ [MascotCar Edit] Erro no UPDATE de produto:', updateError);
-        showEditModalAlert(updateError.message || 'Falha ao atualizar o produto.', 'error');
+
+        // Se uma nova imagem foi enviada ao Storage, realiza rollback imediato dela
+        if (newSafePath) {
+          console.warn('⚠️ [MascotCar Storage] Revertendo upload da nova imagem após falha no banco...');
+          try {
+            await client.storage.from('products').remove([newSafePath]);
+          } catch (rbErr) {
+            console.warn('⚠️ [MascotCar Storage] Falha ao reverter nova imagem:', rbErr);
+          }
+        }
+
+        showEditModalAlert(
+          `Falha ao atualizar o produto no banco: ${updateError.message}. Nenhuma alteração foi salva.`,
+          'error'
+        );
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<span>Salvar Alterações</span>';
+        }
+        if (btnRemoveImage && oldImageUrl) {
+          btnRemoveImage.disabled = false;
         }
         return;
       }
 
-      // 5. Sucesso
-      showEditModalAlert('Produto atualizado com sucesso!', 'success');
+      // 6. UPDATE NO BANCO CONCLUÍDO COM SUCESSO!
+      // Se houve substituição de imagem (nova URL gravada e existia imagem antiga):
+      // Tenta remover a imagem antiga do Storage de forma segura.
+      let oldImageCleanupWarning = null;
+
+      if (newPublicUrl && oldImageUrl) {
+        const oldStoragePath = extractStoragePath(oldImageUrl);
+        const isLegacyProtected = oldStoragePath === 'produto teste.webp' || oldImageUrl.includes('produto%20teste.webp');
+        const isProductPattern = Boolean(oldStoragePath && oldStoragePath.startsWith(`prod-${productId}-`));
+
+        if (isLegacyProtected) {
+          console.info('ℹ️ [MascotCar Storage] Imagem legada "produto teste.webp" preservada no Storage por segurança.');
+        } else if (!isProductPattern) {
+          console.warn(
+            `⚠️ [MascotCar Storage] Arquivo antigo "${oldStoragePath}" não corresponde ao padrão esperado prod-${productId}-*, mantido no Storage.`
+          );
+        } else if (oldStoragePath) {
+          const { error: oldRemoveError } = await client.storage
+            .from('products')
+            .remove([oldStoragePath]);
+
+          if (oldRemoveError) {
+            console.warn(
+              '⚠️ [MascotCar Storage] Nova imagem salva, mas não foi possível remover o arquivo antigo:',
+              oldRemoveError.message
+            );
+            oldImageCleanupWarning = 'Produto e nova imagem atualizados com sucesso, mas a imagem anterior não pôde ser removida do armazenamento.';
+          } else {
+            console.info(`✔ [MascotCar Storage] Imagem antiga "${oldStoragePath}" removida com sucesso após substituição.`);
+          }
+        }
+      }
+
+      // 7. Atualiza o estado em memória local
+      if (prod) {
+        prod.name = name;
+        prod.description = description || null;
+        prod.price = priceNum;
+        prod.stock = stockNum;
+        prod.category_id = categoryId;
+        prod.active = Boolean(isActive);
+        if (newPublicUrl) {
+          prod.image_url = newPublicUrl;
+        }
+      }
+
+      // 8. Atualiza a interface e a visualização
+      if (imageInput) {
+        imageInput.value = '';
+      }
+
+      if (newPublicUrl) {
+        const updatedImages = await fetchProductImages(productId, newPublicUrl);
+        renderImageViewer(updatedImages, name);
+
+        if (btnRemoveImage) {
+          btnRemoveImage.style.display = 'inline-flex';
+          btnRemoveImage.disabled = false;
+          btnRemoveImage.innerHTML = '<span>🗑️ Remover Imagem</span>';
+        }
+      }
+
+      // Mensagem de retorno ao usuário
+      if (oldImageCleanupWarning) {
+        showEditModalAlert(oldImageCleanupWarning, 'warning');
+      } else {
+        showEditModalAlert(
+          newPublicUrl ? 'Produto e nova imagem atualizados com sucesso!' : 'Produto atualizado com sucesso!',
+          'success'
+        );
+      }
+
+      // Recarrega a listagem de produtos ao fundo
+      loadProducts();
+
+      // Fecha o modal após intervalo
       setTimeout(() => {
         closeEditModal();
-        loadProducts();
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<span>Salvar Alterações</span>';
         }
-      }, 600);
+      }, oldImageCleanupWarning ? 2200 : 700);
 
     } catch (err) {
       console.error('❌ [MascotCar Edit] Erro inesperado ao editar produto:', err);
@@ -1169,6 +1347,9 @@
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<span>Salvar Alterações</span>';
+      }
+      if (btnRemoveImage && oldImageUrl) {
+        btnRemoveImage.disabled = false;
       }
     }
   }
