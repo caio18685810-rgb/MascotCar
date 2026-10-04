@@ -452,9 +452,12 @@
     }
   }
 
-  function closeCreateModal() {
-    const { modal, form } = getCreateModalElements();
+  function closeCreateModal(force = false) {
+    const { modal, form, submitBtn } = getCreateModalElements();
     if (!modal) return;
+    if (!force && submitBtn && submitBtn.disabled) {
+      return;
+    }
     modal.style.display = 'none';
     if (form) form.reset();
     hideCreateModalAlert();
@@ -588,7 +591,7 @@
       if (!imageFile) {
         showCreateModalAlert('Produto cadastrado com sucesso!', 'success');
         setTimeout(() => {
-          closeCreateModal();
+          closeCreateModal(true);
           loadProducts();
           if (submitBtn) {
             submitBtn.disabled = false;
@@ -647,8 +650,27 @@
 
         if (updateError) {
           console.warn('⚠️ [MascotCar Products] Falha ao atualizar image_url:', updateError);
+
+          // Correção 1: Tenta remover a imagem recém-enviada para evitar arquivo órfão
+          let orphanWarning = '';
+          try {
+            const { error: removeError } = await client.storage
+              .from('products')
+              .remove([safePath]);
+
+            if (removeError) {
+              console.error('❌ [MascotCar Storage] Falha ao remover imagem recém-enviada após erro no UPDATE:', removeError);
+              orphanWarning = ' Atenção: a imagem recém-enviada não pôde ser removida e pode ter ficado sem vínculo no armazenamento.';
+            } else {
+              console.info(`✔ [MascotCar Storage] Imagem recém-enviada "${safePath}" removida com sucesso após erro no UPDATE.`);
+            }
+          } catch (cleanErr) {
+            console.error('❌ [MascotCar Storage] Erro inesperado ao remover imagem recém-enviada:', cleanErr);
+            orphanWarning = ' Atenção: a imagem recém-enviada não pôde ser removida e pode ter ficado sem vínculo no armazenamento.';
+          }
+
           showCreateModalAlert(
-            `Produto e imagem enviados, mas ocorreu um erro ao salvar a URL da imagem: ${updateError.message}`,
+            `Produto criado com sucesso, mas ocorreu um erro ao vincular a imagem: ${updateError.message}.${orphanWarning} O produto foi salvo sem imagem.`,
             'warning'
           );
           loadProducts();
@@ -663,7 +685,7 @@
       // Sucesso completo com imagem
       showCreateModalAlert('Produto e imagem cadastrados com sucesso!', 'success');
       setTimeout(() => {
-        closeCreateModal();
+        closeCreateModal(true);
         loadProducts();
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -891,9 +913,12 @@
     renderImageViewer(images, prod.name || 'Produto');
   }
 
-  function closeEditModal() {
-    const { modal, form, btnRemoveImage, imageInput } = getEditModalElements();
+  function closeEditModal(force = false) {
+    const { modal, form, btnRemoveImage, imageInput, submitBtn } = getEditModalElements();
     if (!modal) return;
+    if (!force && submitBtn && submitBtn.disabled) {
+      return;
+    }
     modal.style.display = 'none';
     if (form) form.reset();
     if (imageInput) imageInput.value = '';
@@ -1334,7 +1359,7 @@
 
       // Fecha o modal após intervalo
       setTimeout(() => {
-        closeEditModal();
+        closeEditModal(true);
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.innerHTML = '<span>Salvar Alterações</span>';
