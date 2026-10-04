@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel Administrativo — MascotCar</title>
+  <link rel="stylesheet" href="admin.css">
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+</head>
+<body>
+
+  <!-- 1. Tela de Carregamento / Validação de Credenciais -->
+  <div id="admin-loading" class="loading-screen" role="status" aria-live="polite">
+    <div class="spinner"></div>
+    <p>Verificando permissões de administrador...</p>
+  </div>
+
+  <!-- 2. Tela de Acesso Negado (usuário autenticado, porém NÃO é administrador) -->
+  <main id="access-denied-view" class="admin-container" style="display: none;">
+    <div class="card denied-card">
+      <div class="denied-icon">🚫</div>
+      <h1 class="card-title" style="justify-content: center; font-size: 1.5rem; margin-bottom: 0.75rem;">
+        Acesso Negado
+      </h1>
+      <p class="card-text">
+        Você está autenticado como <strong id="denied-user-email" style="color: var(--text-main);"></strong>, mas este usuário não possui privilégios de administrador para acessar este painel.
+      </p>
+      <div class="denied-actions">
+        <button id="denied-logout-btn" class="btn btn-secondary">
+          Sair da Conta
+        </button>
+        <a href="../index.html" class="btn btn-primary">
+          Ir para a Loja
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <!-- 3. Painel Administrativo Autorizado -->
+  <div id="admin-app" style="display: none;">
+    <!-- Barra Superior -->
+    <header class="admin-navbar">
+      <a href="../index.html" class="navbar-brand" title="Ver Loja Pública">
+        🚗 MascotCar <span class="tag">Admin</span>
+      </a>
+
+      <div class="navbar-actions">
+        <div class="admin-badge">
+          <span class="dot" title="Sessão ativa"></span>
+          <span id="admin-user-email" class="user-email"></span>
+        </div>
+        <button id="logout-btn" class="btn btn-outline-danger btn-sm" title="Encerrar sessão">
+          Sair
+        </button>
+      </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="admin-container" role="main">
+      <div class="admin-header">
+        <h1 class="admin-title">Painel de Controle</h1>
+        <p class="admin-desc">Gestão de produtos e catálogo da MascotCar.</p>
+      </div>
+
+      <!-- Card de Status da Autenticação -->
+      <section class="card">
+        <h2 class="card-title">
+          <span>🛡️</span> Autenticação e Segurança Ativas
+        </h2>
+        <p class="card-text">
+          Você está conectado com privilégios de administrador validados pelo Supabase (função <code>is_admin()</code> e políticas RLS).
+        </p>
+        <div style="margin-top: 1rem; padding: 0.85rem 1rem; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: var(--radius-md); font-size: 0.875rem; color: #a7f3d0;">
+          ✔ Acesso protegido com sucesso. Somente administradores cadastrados podem visualizar esta rota.
+        </div>
+      </section>
+
+      <!-- Seção de Produtos -->
+      <section id="products-section" class="card">
+        <div class="section-header">
+          <div class="section-header-title">
+            <h2 class="card-title" style="margin-bottom: 0;">
+              <span>📦</span> Produtos Cadastrados
+            </h2>
+            <span id="products-count-badge" class="count-badge">Carregando...</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button id="btn-open-create-modal" class="btn btn-primary btn-sm" title="Cadastrar novo produto">
+              ➕ Novo Produto
+            </button>
+            <button id="products-refresh-btn" class="btn btn-secondary btn-sm" title="Recarregar catálogo">
+              🔄 Atualizar
+            </button>
+            <a href="../index.html" class="btn btn-secondary btn-sm" title="Ver catálogo na loja">
+              👁️ Loja Pública
+            </a>
+          </div>
+        </div>
+
+        <!-- 1. Estado de Carregamento -->
+        <div id="products-loading" class="products-state-box" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem;">
+          <div class="spinner"></div>
+          <p class="products-state-desc">Carregando catálogo de produtos do Supabase...</p>
+        </div>
+
+        <!-- 2. Estado de Erro -->
+        <div id="products-error" class="products-state-box" style="display: none;">
+          <div class="products-state-icon">⚠️</div>
+          <h3 class="products-state-title">Erro ao Carregar Produtos</h3>
+          <p id="products-error-message" class="products-state-desc" style="color: #fca5a5; margin-bottom: 1.25rem;">
+            Não foi possível consultar os produtos no banco de dados.
+          </p>
+          <button id="products-retry-btn" class="btn btn-primary btn-sm" style="width: auto; margin: 0 auto;">
+            Tentar Novamente
+          </button>
+        </div>
+
+        <!-- 3. Estado Vazio -->
+        <div id="products-empty" class="products-state-box" style="display: none;">
+          <div class="products-state-icon">📭</div>
+          <h3 class="products-state-title">Nenhum Produto Encontrado</h3>
+          <p class="products-state-desc">
+            Ainda não há produtos cadastrados na tabela do banco de dados.
+          </p>
+        </div>
+
+        <!-- 4. Conteúdo: Tabela de Produtos -->
+        <div id="products-content" style="display: none;">
+          <div class="table-responsive">
+            <table class="admin-table" aria-label="Tabela de Produtos Cadastrados">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 70px;">Imagem</th>
+                  <th scope="col">Produto</th>
+                  <th scope="col">Categoria</th>
+                  <th scope="col">Preço</th>
+                  <th scope="col">Estoque</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" style="width: 100px; text-align: center;">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="products-table-body">
+                <!-- Linhas inseridas dinamicamente por products.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. Modal de Cadastro de Novo Produto -->
+      <div id="modal-create-product" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-create-title">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 id="modal-create-title" class="modal-title">
+              <span>➕</span> Cadastrar Novo Produto
+            </h3>
+            <button type="button" id="btn-close-modal" class="modal-close-btn" aria-label="Fechar janela de cadastro">&times;</button>
+          </div>
+
+          <!-- Mensagens de Alerta dentro do Modal -->
+          <div id="create-product-alert" class="alert" style="display: none;" role="alert"></div>
+
+          <form id="form-create-product" novalidate>
+            <div class="form-group">
+              <label for="create-name" class="form-label">Nome do Produto *</label>
+              <input 
+                type="text" 
+                id="create-name" 
+                class="form-input" 
+                placeholder="Ex: Mascote Pitbull Aromatizante" 
+                required 
+                autocomplete="off"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="create-description" class="form-label">Descrição</label>
+              <textarea 
+                id="create-description" 
+                class="form-input form-textarea" 
+                rows="3" 
+                placeholder="Detalhes, notas aromáticas, dimensões ou material do mascote..."
+              ></textarea>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group">
+                <label for="create-price" class="form-label">Preço (R$) *</label>
+                <input 
+                  type="number" 
+                  id="create-price" 
+                  class="form-input" 
+                  step="0.01" 
+                  min="0.01" 
+                  placeholder="39.90" 
+                  required
+                >
+              </div>
+
+              <div class="form-group">
+                <label for="create-stock" class="form-label">Estoque (unidades) *</label>
+                <input 
+                  type="number" 
+                  id="create-stock" 
+                  class="form-input" 
+                  step="1" 
+                  min="0" 
+                  value="0" 
+                  required
+                >
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="create-category" class="form-label">Categoria</label>
+              <select id="create-category" class="form-input form-select">
+                <option value="">Sem categoria</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="create-image" class="form-label">Imagem do Produto (Opcional)</label>
+              <input 
+                type="file" 
+                id="create-image" 
+                class="form-input-file" 
+                accept="image/jpeg,image/png,image/webp"
+              >
+              <span class="form-help">Formatos aceitos: JPEG, PNG ou WebP. Tamanho máximo: 5 MB.</span>
+            </div>
+
+            <div class="form-group-checkbox">
+              <label class="checkbox-label">
+                <input type="checkbox" id="create-active" checked>
+                <span>Produto Ativo (visível no catálogo da loja)</span>
+              </label>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" id="btn-cancel-modal" class="btn btn-secondary">
+                Cancelar
+              </button>
+              <button type="submit" id="btn-submit-create" class="btn btn-primary">
+                <span>Cadastrar Produto</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 6. Modal de Edição de Produto -->
+      <div id="modal-edit-product" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modal-edit-title">
+        <div class="modal-card">
+          <div class="modal-header">
+            <h3 id="modal-edit-title" class="modal-title">
+              <span>✏️</span> Editar Produto
+            </h3>
+            <button type="button" id="btn-close-edit-modal" class="modal-close-btn" aria-label="Fechar janela de edição">&times;</button>
+          </div>
+
+          <!-- Mensagens de Alerta dentro do Modal de Edição -->
+          <div id="edit-product-alert" class="alert" style="display: none;" role="alert"></div>
+
+          <form id="form-edit-product" novalidate>
+            <!-- ID oculto do produto -->
+            <input type="hidden" id="edit-id">
+
+            <!-- Prévia somente leitura da Imagem -->
+            <div class="form-group">
+              <label class="form-label">Imagem do Produto</label>
+              <div id="edit-image-preview-container" class="edit-image-preview-box">
+                <!-- Preenchido dinamicamente por products.js -->
+              </div>
+              <span class="form-help">A imagem não pode ser alterada ou removida nesta etapa.</span>
+            </div>
+
+            <div class="form-group">
+              <label for="edit-name" class="form-label">Nome do Produto *</label>
+              <input 
+                type="text" 
+                id="edit-name" 
+                class="form-input" 
+                placeholder="Ex: Mascote Pitbull Aromatizante" 
+                required 
+                autocomplete="off"
+              >
+            </div>
+
+            <div class="form-group">
+              <label for="edit-description" class="form-label">Descrição</label>
+              <textarea 
+                id="edit-description" 
+                class="form-input form-textarea" 
+                rows="3" 
+                placeholder="Detalhes, notas aromáticas, dimensões ou material do mascote..."
+              ></textarea>
+            </div>
+
+            <div class="form-row-2">
+              <div class="form-group">
+                <label for="edit-price" class="form-label">Preço (R$) *</label>
+                <input 
+                  type="number" 
+                  id="edit-price" 
+                  class="form-input" 
+                  step="0.01" 
+                  min="0.01" 
+                  placeholder="39.90" 
+                  required
+                >
+              </div>
+
+              <div class="form-group">
+                <label for="edit-stock" class="form-label">Estoque (unidades) *</label>
+                <input 
+                  type="number" 
+                  id="edit-stock" 
+                  class="form-input" 
+                  step="1" 
+                  min="0" 
+                  value="0" 
+                  required
+                >
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="edit-category" class="form-label">Categoria</label>
+              <select id="edit-category" class="form-input form-select">
+                <option value="">Sem categoria</option>
+              </select>
+            </div>
+
+            <div class="form-group-checkbox">
+              <label class="checkbox-label">
+                <input type="checkbox" id="edit-active">
+                <span>Produto Ativo (visível no catálogo da loja)</span>
+              </label>
+            </div>
+
+            <div class="modal-footer">
+              <button type="button" id="btn-cancel-edit-modal" class="btn btn-secondary">
+                Cancelar
+              </button>
+              <button type="submit" id="btn-submit-edit" class="btn btn-primary">
+                <span>Salvar Alterações</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Dependências do Supabase e scripts administrativos -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="auth.js"></script>
+  <script src="products.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      if (window.MascotCarAuth && window.MascotCarAuth.protectAdminPage) {
+        const isAuthorized = await window.MascotCarAuth.protectAdminPage();
+        if (isAuthorized && window.MascotCarProducts && window.MascotCarProducts.init) {
+          window.MascotCarProducts.init();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

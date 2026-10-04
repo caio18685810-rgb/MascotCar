@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login Administrativo — MascotCar</title>
+  <link rel="stylesheet" href="admin.css">
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+</head>
+<body class="login-page">
+
+  <main class="login-card" role="main">
+    <div class="login-header">
+      <a href="../index.html" class="login-logo" title="Voltar para a loja">
+        🚗 MascotCar <span class="badge">Admin</span>
+      </a>
+      <p class="login-subtitle">Acesso restrito a administradores autorizados</p>
+    </div>
+
+    <!-- Mensagens de Alerta (Erro / Sucesso) -->
+    <div id="login-alert" class="alert alert-error" style="display: none;" role="alert" aria-live="polite"></div>
+
+    <form id="login-form" autocomplete="on">
+      <div class="form-group">
+        <label for="email" class="form-label">E-mail</label>
+        <input 
+          type="email" 
+          id="email" 
+          name="email" 
+          class="form-input" 
+          placeholder="seu-email@exemplo.com" 
+          required 
+          autocomplete="username"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Senha</label>
+        <input 
+          type="password" 
+          id="password" 
+          name="password" 
+          class="form-input" 
+          placeholder="••••••••" 
+          required 
+          autocomplete="current-password"
+        >
+      </div>
+
+      <button type="submit" id="login-submit-btn" class="btn btn-primary" style="margin-top: 1rem;">
+        <span>Acessar Painel</span>
+      </button>
+    </form>
+
+    <div class="login-footer-links">
+      <a href="../index.html">← Voltar para a loja pública</a>
+    </div>
+  </main>
+
+  <!-- Dependências do Supabase e scripts de autenticação -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/supabase-client.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.MascotCarAuth && window.MascotCarAuth.initLoginPage) {
+        window.MascotCarAuth.initLoginPage();
+      }
+    });
+  </script>
+</body>
+</html>
