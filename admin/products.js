@@ -16,6 +16,15 @@
   // Armazena em memória os produtos carregados para acesso rápido na edição e visualização
   let loadedProducts = [];
 
+  // Estado ativo de busca, filtros e ordenação (Etapa 3G)
+  const currentFilters = {
+    search: '',
+    status: 'all',
+    category: 'all',
+    stock: 'all',
+    sort: 'recent'
+  };
+
   /**
    * Retorna a instância ativa do cliente Supabase.
    * @returns {Object|null}
@@ -225,23 +234,212 @@
   };
 
   /**
-   * Renderiza as linhas da tabela com os produtos carregados.
-   * @param {Array} products
+   * Preenche o select de categorias da barra de filtros.
    */
-  function renderProductsTable(products) {
-    loadedProducts = Array.isArray(products) ? products : [];
+  async function populateFilterCategoriesSelect() {
+    const selectEl = document.getElementById('filter-category');
+    if (!selectEl) return;
+
+    const categories = await fetchCategories();
+    const currentVal = currentFilters.category;
+
+    selectEl.innerHTML = `
+      <option value="all">Todas as categorias</option>
+      <option value="none">Sem categoria</option>
+    `;
+
+    categories.forEach((cat) => {
+      const option = document.createElement('option');
+      option.value = cat.id;
+      option.textContent = cat.name;
+      if (currentVal === cat.id) {
+        option.selected = true;
+      }
+      selectEl.appendChild(option);
+    });
+
+    selectEl.value = currentVal;
+  }
+
+  /**
+   * Redefine todos os filtros e busca para o estado padrão.
+   */
+  function resetAllFilters() {
+    currentFilters.search = '';
+    currentFilters.status = 'all';
+    currentFilters.category = 'all';
+    currentFilters.stock = 'all';
+    currentFilters.sort = 'recent';
+
+    const searchInput = document.getElementById('products-search-input');
+    if (searchInput) searchInput.value = '';
+
+    const clearSearchBtn = document.getElementById('btn-clear-search');
+    if (clearSearchBtn) clearSearchBtn.style.display = 'none';
+
+    const statusSelect = document.getElementById('filter-status');
+    if (statusSelect) statusSelect.value = 'all';
+
+    const categorySelect = document.getElementById('filter-category');
+    if (categorySelect) categorySelect.value = 'all';
+
+    const stockSelect = document.getElementById('filter-stock');
+    if (stockSelect) stockSelect.value = 'all';
+
+    const sortSelect = document.getElementById('sort-products');
+    if (sortSelect) sortSelect.value = 'recent';
+
+    const resetBtn = document.getElementById('btn-reset-filters');
+    if (resetBtn) resetBtn.style.display = 'none';
+
+    renderProductsTable();
+  }
+
+  /**
+   * Aplica busca textual, filtros de status, categoria, estoque e ordenação.
+   * @param {Array} products
+   * @returns {Array}
+   */
+  function applyFiltersAndSort(products) {
+    if (!Array.isArray(products)) return [];
+
+    const query = currentFilters.search.toLowerCase().trim();
+
+    const filtered = products.filter((prod) => {
+      // 1. Busca textual por nome ou descrição
+      if (query) {
+        const name = (prod.name || '').toLowerCase();
+        const desc = (prod.description || '').toLowerCase();
+        if (!name.includes(query) && !desc.includes(query)) {
+          return false;
+        }
+      }
+
+      // 2. Filtro de Status
+      if (currentFilters.status === 'active' && prod.active !== true) {
+        return false;
+      }
+      if (currentFilters.status === 'inactive' && prod.active === true) {
+        return false;
+      }
+
+      // 3. Filtro de Categoria
+      if (currentFilters.category !== 'all') {
+        if (currentFilters.category === 'none') {
+          if (prod.category_id) return false;
+        } else {
+          if (prod.category_id !== currentFilters.category) return false;
+        }
+      }
+
+      // 4. Filtro de Estoque
+      if (currentFilters.stock === 'in_stock') {
+        const st = Number(prod.stock);
+        if (isNaN(st) || st <= 0) return false;
+      } else if (currentFilters.stock === 'out_of_stock') {
+        const st = Number(prod.stock);
+        if (!isNaN(st) && st > 0) return false;
+      }
+
+      return true;
+    });
+
+    // 5. Ordenação
+    filtered.sort((a, b) => {
+      switch (currentFilters.sort) {
+        case 'oldest':
+          return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+        case 'name_asc':
+          return (a.name || '').localeCompare(b.name || '', 'pt-BR', { sensitivity: 'base' });
+        case 'name_desc':
+          return (b.name || '').localeCompare(a.name || '', 'pt-BR', { sensitivity: 'base' });
+        case 'price_asc':
+          return (Number(a.price) || 0) - (Number(b.price) || 0);
+        case 'price_desc':
+          return (Number(b.price) || 0) - (Number(a.price) || 0);
+        case 'stock_desc':
+          return (Number(b.stock) || 0) - (Number(a.stock) || 0);
+        case 'recent':
+        default:
+          return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      }
+    });
+
+    return filtered;
+  }
+
+  /**
+   * Renderiza as linhas da tabela com os produtos filtrados e ordenados.
+   * @param {Array|null} products
+   */
+  function renderProductsTable(products = null) {
+    if (products !== null) {
+      loadedProducts = Array.isArray(products) ? products : [];
+    }
+
     const tbody = UI.tableBody();
     const countBadge = UI.countBadge();
 
+    const filtered = applyFiltersAndSort(loadedProducts);
+    const total = loadedProducts.length;
+    const hasActiveFilters = Boolean(
+      currentFilters.search.trim() !== '' ||
+      currentFilters.status !== 'all' ||
+      currentFilters.category !== 'all' ||
+      currentFilters.stock !== 'all' ||
+      currentFilters.sort !== 'recent'
+    );
+
+    // Controle de exibição dos botões auxiliares da toolbar
+    const resetBtn = document.getElementById('btn-reset-filters');
+    if (resetBtn) {
+      resetBtn.style.display = hasActiveFilters ? 'inline-flex' : 'none';
+    }
+
+    const clearSearchBtn = document.getElementById('btn-clear-search');
+    if (clearSearchBtn) {
+      clearSearchBtn.style.display = currentFilters.search.trim() !== '' ? 'flex' : 'none';
+    }
+
+    // Badge com contagem inteligente
     if (countBadge) {
-      const total = loadedProducts.length;
-      countBadge.textContent = `${total} ${total === 1 ? 'produto' : 'produtos'}`;
+      if (hasActiveFilters) {
+        countBadge.textContent = `${filtered.length} de ${total} ${total === 1 ? 'produto' : 'produtos'}`;
+      } else {
+        countBadge.textContent = `${total} ${total === 1 ? 'produto' : 'produtos'}`;
+      }
     }
 
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    loadedProducts.forEach((prod) => {
+    // Estado quando não há produtos correspondentes aos filtros
+    if (filtered.length === 0) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td colspan="7" class="table-empty-row">
+          <div class="table-empty-box">
+            <span style="font-size: 1.8rem;">🔍</span>
+            <strong>Nenhum produto encontrado com os filtros aplicados.</strong>
+            <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.5rem;">
+              Tente pesquisar por outros termos ou redefinir os filtros ativos.
+            </p>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-empty-clear-filters" style="width: auto;">
+              Limpar todos os filtros
+            </button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      const emptyClearBtn = tr.querySelector('#btn-empty-clear-filters');
+      if (emptyClearBtn) {
+        emptyClearBtn.addEventListener('click', resetAllFilters);
+      }
+      return;
+    }
+
+    filtered.forEach((prod) => {
       const tr = document.createElement('tr');
 
       // Categoria (resolvida pelo relacionamento ou fallback)
@@ -312,19 +510,76 @@
           ${statusBadge}
         </td>
         <td class="col-actions">
-          <button 
-            type="button" 
-            class="btn btn-secondary btn-sm btn-edit-product" 
-            data-id="${escapeHtml(prod.id)}" 
-            title="Editar dados do produto"
-          >
-            ✏️ Editar
-          </button>
+          <div style="display: flex; gap: 0.4rem; justify-content: center; align-items: center; flex-wrap: wrap;">
+            <button 
+              type="button" 
+              class="btn btn-secondary btn-sm btn-edit-product" 
+              data-id="${escapeHtml(prod.id)}" 
+              title="Editar dados do produto"
+            >
+              ✏️ Editar
+            </button>
+            <button 
+              type="button" 
+              class="btn-toggle-status ${isActive ? 'btn-status-deactivate' : 'btn-status-activate'}" 
+              data-id="${escapeHtml(prod.id)}" 
+              title="${isActive ? 'Pausar produto (ocultar na loja)' : 'Ativar produto (exibir na loja)'}"
+            >
+              ${isActive ? '⏸️ Pausar' : '▶️ Ativar'}
+            </button>
+          </div>
         </td>
       `;
 
       tbody.appendChild(tr);
     });
+  }
+
+  /**
+   * Alterna rapidamente o status ativo/inativo de um produto a partir da listagem.
+   * @param {string} productId
+   * @param {HTMLButtonElement|null} buttonEl
+   */
+  async function handleQuickToggleStatus(productId, buttonEl) {
+    const prod = loadedProducts.find((p) => p.id === productId);
+    if (!prod) return;
+
+    const client = getClient();
+    if (!client) return;
+
+    const newStatus = !prod.active;
+
+    if (buttonEl) {
+      buttonEl.disabled = true;
+      buttonEl.textContent = '...';
+    }
+
+    try {
+      const { error } = await client
+        .from('products')
+        .update({ active: newStatus })
+        .eq('id', productId);
+
+      if (error) {
+        console.error('❌ [MascotCar] Erro ao alternar status do produto:', error);
+        alert('Não foi possível alterar o status do produto: ' + (error.message || 'Erro desconhecido'));
+        if (buttonEl) {
+          buttonEl.disabled = false;
+          buttonEl.textContent = prod.active ? '⏸️ Pausar' : '▶️ Ativar';
+        }
+        return;
+      }
+
+      // Atualiza estado local e re-renderiza mantendo os filtros
+      prod.active = newStatus;
+      renderProductsTable();
+    } catch (err) {
+      console.error('❌ [MascotCar] Erro inesperado ao alternar status:', err);
+      if (buttonEl) {
+        buttonEl.disabled = false;
+        buttonEl.textContent = prod.active ? '⏸️ Pausar' : '▶️ Ativar';
+      }
+    }
   }
 
   /**
@@ -354,7 +609,9 @@
       return;
     }
 
-    renderProductsTable(products);
+    loadedProducts = products;
+    await populateFilterCategoriesSelect();
+    renderProductsTable();
     UI.showOnly('content');
   }
 
@@ -1420,6 +1677,80 @@
       });
     }
 
+    // ------------------------------------------------------------------------
+    // Eventos da Barra de Ferramentas / Busca e Filtros (Etapa 3G)
+    // ------------------------------------------------------------------------
+
+    const searchInputEl = document.getElementById('products-search-input');
+    const clearSearchBtn = document.getElementById('btn-clear-search');
+    let searchDebounceTimeout = null;
+
+    if (searchInputEl) {
+      searchInputEl.addEventListener('input', (e) => {
+        const val = e.target.value;
+        if (clearSearchBtn) {
+          clearSearchBtn.style.display = val.trim().length > 0 ? 'inline-block' : 'none';
+        }
+
+        clearTimeout(searchDebounceTimeout);
+        searchDebounceTimeout = setTimeout(() => {
+          currentFilters.search = val;
+          renderProductsTable();
+        }, 150);
+      });
+    }
+
+    if (clearSearchBtn) {
+      clearSearchBtn.addEventListener('click', () => {
+        if (searchInputEl) {
+          searchInputEl.value = '';
+          searchInputEl.focus();
+        }
+        clearSearchBtn.style.display = 'none';
+        currentFilters.search = '';
+        renderProductsTable();
+      });
+    }
+
+    const filterStatusEl = document.getElementById('filter-status');
+    if (filterStatusEl) {
+      filterStatusEl.addEventListener('change', (e) => {
+        currentFilters.status = e.target.value;
+        renderProductsTable();
+      });
+    }
+
+    const filterCategoryEl = document.getElementById('filter-category');
+    if (filterCategoryEl) {
+      filterCategoryEl.addEventListener('change', (e) => {
+        currentFilters.category = e.target.value;
+        renderProductsTable();
+      });
+    }
+
+    const filterStockEl = document.getElementById('filter-stock');
+    if (filterStockEl) {
+      filterStockEl.addEventListener('change', (e) => {
+        currentFilters.stock = e.target.value;
+        renderProductsTable();
+      });
+    }
+
+    const sortProductsEl = document.getElementById('sort-products');
+    if (sortProductsEl) {
+      sortProductsEl.addEventListener('change', (e) => {
+        currentFilters.sort = e.target.value;
+        renderProductsTable();
+      });
+    }
+
+    const resetFiltersBtn = document.getElementById('btn-reset-filters');
+    if (resetFiltersBtn) {
+      resetFiltersBtn.addEventListener('click', () => {
+        resetAllFilters();
+      });
+    }
+
     // Envio do formulário de cadastro
     const createFormEl = document.getElementById('form-create-product');
     if (createFormEl) {
@@ -1427,12 +1758,22 @@
     }
 
     // ------------------------------------------------------------------------
-    // Eventos da Tabela de Produtos (Edição e Lightbox)
+    // Eventos da Tabela de Produtos (Edição, Lightbox, Alternância de Status e Limpeza de Filtros)
     // ------------------------------------------------------------------------
 
     const tableBodyEl = document.getElementById('products-table-body');
     if (tableBodyEl) {
       tableBodyEl.addEventListener('click', (e) => {
+        // Clique no botão de alternar status (Pausar / Ativar rápido)
+        const toggleBtn = e.target.closest('.btn-toggle-status');
+        if (toggleBtn) {
+          const productId = toggleBtn.getAttribute('data-id');
+          if (productId) {
+            handleQuickToggleStatus(productId, toggleBtn);
+          }
+          return;
+        }
+
         // Clique no botão Editar
         const editBtn = e.target.closest('.btn-edit-product');
         if (editBtn) {
@@ -1440,6 +1781,13 @@
           if (productId) {
             openEditModal(productId);
           }
+          return;
+        }
+
+        // Clique no botão de limpar filtros dentro do estado vazio da tabela
+        const resetFromEmptyBtn = e.target.closest('.btn-reset-from-empty');
+        if (resetFromEmptyBtn) {
+          resetAllFilters();
           return;
         }
 
@@ -1537,6 +1885,9 @@
   window.MascotCarProducts = {
     init,
     loadProducts,
+    renderProductsTable,
+    resetAllFilters,
+    handleQuickToggleStatus,
     openCreateModal,
     closeCreateModal,
     openEditModal,

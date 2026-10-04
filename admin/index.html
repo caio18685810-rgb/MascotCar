@@ -126,6 +126,83 @@
 
         <!-- 4. Conteúdo: Tabela de Produtos -->
         <div id="products-content" style="display: none;">
+          <!-- Barra de Busca, Filtros e Ordenação (Etapa 3G) -->
+          <div class="products-toolbar" id="products-toolbar">
+            <div class="toolbar-search-wrap">
+              <span class="toolbar-search-icon">🔍</span>
+              <input 
+                type="text" 
+                id="products-search-input" 
+                class="toolbar-search-input" 
+                placeholder="Buscar por nome ou descrição do produto..." 
+                autocomplete="off"
+              >
+              <button 
+                type="button" 
+                id="btn-clear-search" 
+                class="toolbar-clear-btn" 
+                style="display: none;" 
+                title="Limpar busca"
+              >&times;</button>
+            </div>
+
+            <div class="toolbar-filters-wrap">
+              <!-- Filtro de Status -->
+              <div class="toolbar-filter-item">
+                <label for="filter-status" class="toolbar-filter-label">Status:</label>
+                <select id="filter-status" class="toolbar-select">
+                  <option value="all">Todos</option>
+                  <option value="active">Ativos</option>
+                  <option value="inactive">Inativos</option>
+                </select>
+              </div>
+
+              <!-- Filtro de Categoria -->
+              <div class="toolbar-filter-item">
+                <label for="filter-category" class="toolbar-filter-label">Categoria:</label>
+                <select id="filter-category" class="toolbar-select">
+                  <option value="all">Todas</option>
+                  <option value="none">Sem categoria</option>
+                </select>
+              </div>
+
+              <!-- Filtro de Estoque -->
+              <div class="toolbar-filter-item">
+                <label for="filter-stock" class="toolbar-filter-label">Estoque:</label>
+                <select id="filter-stock" class="toolbar-select">
+                  <option value="all">Todos</option>
+                  <option value="in_stock">Em estoque (> 0)</option>
+                  <option value="out_of_stock">Esgotados (0)</option>
+                </select>
+              </div>
+
+              <!-- Ordenação -->
+              <div class="toolbar-filter-item">
+                <label for="sort-products" class="toolbar-filter-label">Ordenar:</label>
+                <select id="sort-products" class="toolbar-select">
+                  <option value="recent">Mais recentes</option>
+                  <option value="oldest">Mais antigos</option>
+                  <option value="name_asc">Nome (A–Z)</option>
+                  <option value="name_desc">Nome (Z–A)</option>
+                  <option value="price_asc">Menor preço</option>
+                  <option value="price_desc">Maior preço</option>
+                  <option value="stock_desc">Maior estoque</option>
+                </select>
+              </div>
+
+              <!-- Botão Limpar Filtros -->
+              <button 
+                type="button" 
+                id="btn-reset-filters" 
+                class="btn btn-secondary btn-sm" 
+                style="display: none; width: auto; padding: 0.45rem 0.75rem; white-space: nowrap;"
+                title="Redefinir busca e filtros"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          </div>
+
           <div class="table-responsive">
             <table class="admin-table" aria-label="Tabela de Produtos Cadastrados">
               <thead>
@@ -136,7 +213,7 @@
                   <th scope="col">Preço</th>
                   <th scope="col">Estoque</th>
                   <th scope="col">Status</th>
-                  <th scope="col" style="width: 100px; text-align: center;">Ações</th>
+                  <th scope="col" style="width: 170px; text-align: center;">Ações</th>
                 </tr>
               </thead>
               <tbody id="products-table-body">
