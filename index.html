@@ -4,6 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="MascotCar — Aromatizadores automotivos personalizados em formato de mascotes. Deixe seu carro com personalidade!" />
+  <meta name="theme-color" content="#FF5722" />
+  <meta name="robots" content="index, follow" />
+
+  <!-- Open Graph / Redes Sociais -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:title" content="MascotCar | Aromatizadores Automotivos Personalizados" />
+  <meta property="og:description" content="Aromatizadores automotivos em formato de mascotes. Conheça as opções disponíveis em nosso catálogo." />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="MascotCar | Aromatizadores Automotivos Personalizados" />
+  <meta name="twitter:description" content="Aromatizadores automotivos em formato de mascotes. Conheça as opções disponíveis em nosso catálogo." />
+
+  <!-- Favicon SVG Data URI -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23FF5722'/%3E%3Cpath d='M7 19l2-6h14l2 6v5a1 1 0 01-1 1h-1a1 1 0 01-1-1v-1H9v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-5zm3-1a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm12 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM9.5 12l1.2-3.5a1 1 0 01.9-.5h8.8a1 1 0 01.9.5L22.5 12h-13z' fill='%23ffffff'/%3E%3C/svg%3E" />
   <title>MascotCar | Aromatizadores Automotivos Personalizados</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,7 +32,7 @@
   <div class="announcement-bar" id="announcementBar" role="banner">
     <div class="container announcement-bar__inner">
       <p class="announcement-bar__text">
-        🚀 <strong>Loja em construção</strong> — Em breve você poderá personalizar e comprar seu mascote!
+        ✨ <strong>Conheça nosso catálogo</strong> — Aromatizadores automotivos em formato de mascotes.
       </p>
       <button class="announcement-bar__close" id="closeAnnouncement" aria-label="Fechar aviso">✕</button>
     </div>
@@ -46,12 +62,21 @@
         </ul>
       </nav>
 
-      <!-- Hamburger (mobile) -->
-      <button class="hamburger" id="hamburger" aria-label="Abrir menu" aria-expanded="false" aria-controls="nav">
-        <span class="hamburger__line"></span>
-        <span class="hamburger__line"></span>
-        <span class="hamburger__line"></span>
-      </button>
+      <!-- Ações do Header (Minha Lista & Hamburger) -->
+      <div class="header__actions">
+        <button type="button" class="btn-header-cart" id="open-cart-btn" aria-label="Abrir Minha lista de pedido" title="Minha lista de pedido">
+          <span class="btn-header-cart__icon" aria-hidden="true">🛍️</span>
+          <span class="btn-header-cart__text">Minha lista</span>
+          <span class="btn-header-cart__badge" id="cart-badge-count" aria-live="polite">0</span>
+        </button>
+
+        <!-- Hamburger (mobile) -->
+        <button class="hamburger" id="hamburger" aria-label="Abrir menu" aria-expanded="false" aria-controls="nav">
+          <span class="hamburger__line"></span>
+          <span class="hamburger__line"></span>
+          <span class="hamburger__line"></span>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -102,17 +127,17 @@
             <div class="mascot-card mascot-card--featured">
               <div class="mascot-card__emoji">🐻</div>
               <p class="mascot-card__name">Ursinho Cheiroso</p>
-              <p class="mascot-card__tag">Produto Demonstrativo</p>
+              <p class="mascot-card__tag">Linha MascotCar</p>
             </div>
             <div class="mascot-card">
               <div class="mascot-card__emoji">🦁</div>
               <p class="mascot-card__name">Leãozinho</p>
-              <p class="mascot-card__tag">Produto Demonstrativo</p>
+              <p class="mascot-card__tag">Linha MascotCar</p>
             </div>
             <div class="mascot-card">
               <div class="mascot-card__emoji">🐼</div>
               <p class="mascot-card__name">Pandinha</p>
-              <p class="mascot-card__tag">Produto Demonstrativo</p>
+              <p class="mascot-card__tag">Linha MascotCar</p>
             </div>
           </div>
         </div>
@@ -349,15 +374,14 @@
             <span class="cta__emoji" aria-hidden="true">🚗💨</span>
             <h2 class="cta__title">Pronto para transformar seu carro?</h2>
             <p class="cta__subtitle">
-              Seja o primeiro a ter o seu mascote exclusivo. Em breve a loja estará disponível. Fique por dentro!
+              Escolha seu mascote favorito e confira as opções disponíveis em nosso catálogo.
             </p>
             <div class="cta__actions">
-              <button class="btn btn--light btn--lg" disabled>
-                🔔 Avise-me quando abrir
-              </button>
-              <a href="#como-funciona" class="btn btn--outline-light btn--lg">Saiba mais</a>
+              <a href="#produtos" class="btn btn--light btn--lg">
+                🛍️ Ver Produtos
+              </a>
+              <a href="#como-funciona" class="btn btn--outline-light btn--lg">Como Funciona</a>
             </div>
-            <p class="cta__note">⚠️ Loja em construção — botões desativados para demonstração</p>
           </div>
           <div class="cta__decoration" aria-hidden="true">
             <span class="floating-emoji">🐻</span>
@@ -417,8 +441,8 @@
         <div class="footer__col">
           <h4 class="footer__col-title">Contato</h4>
           <ul class="footer__links footer__links--contact">
-            <li>📧 contato@mascotcar.com.br<small> (demonstrativo)</small></li>
-            <li>📱 (00) 00000-0000<small> (demonstrativo)</small></li>
+            <li>📧 contato@mascotcar.com.br</li>
+            <li>📱 Atendimento via WhatsApp</li>
             <li>🌐 Entrega para todo o Brasil</li>
           </ul>
           <div class="footer__social">
@@ -431,7 +455,7 @@
 
       <div class="footer__bottom">
         <p>&copy; 2026 MascotCar. Todos os direitos reservados.</p>
-        <p class="footer__disclaimer">Este site é uma demonstração. Produtos, preços e informações de contato são fictícios.</p>
+        <p class="footer__disclaimer">Aromatizadores automotivos em formato de mascotes.</p>
       </div>
 
     </div>
@@ -473,10 +497,13 @@
           </div>
 
           <div class="product-modal-actions">
-            <a href="#" class="btn btn--primary btn--lg product-modal-btn-contact" id="modal-product-whatsapp" target="_blank" rel="noopener noreferrer">
+            <button type="button" class="btn btn--primary btn--lg" id="modal-product-add-cart">
+              🛍️ Adicionar à Minha Lista
+            </button>
+            <a href="#" class="btn btn--outline btn--lg product-modal-btn-contact" id="modal-product-whatsapp" target="_blank" rel="noopener noreferrer">
               💬 Consultar no WhatsApp
             </a>
-            <button type="button" class="btn btn--outline btn--lg" id="modal-product-close-btn">
+            <button type="button" class="btn btn--ghost btn--lg" id="modal-product-close-btn">
               Voltar ao Catálogo
             </button>
           </div>
@@ -484,6 +511,88 @@
       </div>
     </div>
   </div>
+
+  <!-- ========== DRAWER: MINHA LISTA DE PEDIDO (Etapa 3M) ========== -->
+  <div class="cart-drawer-backdrop" id="cart-drawer-backdrop" aria-hidden="true" style="display: none;">
+    <aside class="cart-drawer" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-drawer-title">
+      <div class="cart-drawer__header">
+        <div class="cart-drawer__title-wrap">
+          <h2 class="cart-drawer__title" id="cart-drawer-title">Minha lista de pedido</h2>
+          <p class="cart-drawer__subtitle">Confira os produtos que você escolheu.</p>
+        </div>
+        <button type="button" class="cart-drawer__close" id="cart-drawer-close" aria-label="Fechar lista de pedido">✕</button>
+      </div>
+
+      <!-- Barra de seleção em massa (quando há itens) -->
+      <div class="cart-drawer__bulk-actions" id="cart-bulk-actions" style="display: none;">
+        <label class="cart-bulk-checkbox-label">
+          <input type="checkbox" id="cart-select-all" class="cart-checkbox" />
+          <span>Selecionar todos</span>
+        </label>
+        <button type="button" class="btn-cart-remove-selected" id="cart-remove-selected-btn">
+          🗑️ Remover selecionados
+        </button>
+      </div>
+
+      <!-- Lista de Itens ou Estado Vazio -->
+      <div class="cart-drawer__body" id="cart-drawer-body">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+
+      <!-- Rodapé / Resumo do Pedido -->
+      <div class="cart-drawer__footer" id="cart-drawer-footer" style="display: none;">
+        <div class="cart-drawer__summary">
+          <div class="cart-summary__row">
+            <span class="cart-summary__label" id="cart-summary-items-count">0 itens selecionados</span>
+            <span class="cart-summary__sublabel">Total dos produtos:</span>
+          </div>
+          <div class="cart-summary__total-wrap">
+            <span class="cart-summary__total" id="cart-summary-total-price">R$ 0,00</span>
+          </div>
+        </div>
+
+        <div class="cart-drawer__actions">
+          <button type="button" class="btn btn--primary btn--lg btn--block" id="cart-btn-proceed">
+            Finalizar pedido pelo WhatsApp
+          </button>
+          <button type="button" class="btn btn--outline btn--block" id="cart-btn-continue">
+            Continuar comprando
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ========== MODAL DE REVISÃO DO PEDIDO (Etapa 3M) ========== -->
+  <div class="order-review-backdrop" id="order-review-backdrop" role="dialog" aria-modal="true" aria-labelledby="order-review-title" style="display: none;">
+    <div class="order-review-card">
+      <div class="order-review-header">
+        <h2 class="order-review-title" id="order-review-title">Revise sua lista</h2>
+        <p class="order-review-subtitle">Confira sua lista antes de enviar o pedido pelo WhatsApp.</p>
+        <button type="button" class="order-review-close" id="order-review-close" aria-label="Fechar revisão">✕</button>
+      </div>
+
+      <div class="order-review-body" id="order-review-body">
+        <!-- Itens a serem enviados renderizados aqui -->
+      </div>
+
+      <div class="order-review-summary" id="order-review-summary">
+        <!-- Totais calculados -->
+      </div>
+
+      <div class="order-review-actions">
+        <button type="button" class="btn btn--outline btn--lg" id="order-review-btn-back">
+          Voltar para minha lista
+        </button>
+        <a href="#" class="btn btn--primary btn--lg" id="order-review-btn-send" target="_blank" rel="noopener noreferrer">
+          💬 Enviar pedido pelo WhatsApp
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast / Feedback visual temporário (A11y live region) -->
+  <div class="cart-toast" id="cart-toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Supabase JS (Cliente Oficial via CDN para navegadores) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
