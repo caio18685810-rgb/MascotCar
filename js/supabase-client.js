@@ -472,7 +472,8 @@ function resetPublicCatalogFilters() {
   const catButtons = document.querySelectorAll('.category-card');
   catButtons.forEach((b) => {
     b.classList.remove('category-card--active');
-    if (b.dataset.filter === 'todos') {
+    const filterVal = b.getAttribute('data-filter');
+    if (filterVal === 'todos' || filterVal === 'all') {
       b.classList.add('category-card--active');
     }
   });
@@ -491,6 +492,18 @@ function setCategoryFilter(categorySlugOrId) {
   if (catSelect) {
     catSelect.value = publicCatalogFilters.category;
   }
+
+  // Sincroniza a classe ativa nos botões de categoria do topo
+  const catButtons = document.querySelectorAll('.category-card');
+  catButtons.forEach((b) => {
+    b.classList.remove('category-card--active');
+    const filterVal = b.getAttribute('data-filter');
+    if (publicCatalogFilters.category === 'all' && (filterVal === 'todos' || filterVal === 'all')) {
+      b.classList.add('category-card--active');
+    } else if (filterVal === publicCatalogFilters.category) {
+      b.classList.add('category-card--active');
+    }
+  });
 
   renderPublicCatalog();
 }
@@ -515,6 +528,74 @@ function populateCategorySelect() {
   select.appendChild(uncategorizedOpt);
 
   select.value = currentVal || 'all';
+}
+
+/**
+ * Renderiza dinamicamente as categorias reais do Supabase na grade do topo (.categories__grid).
+ * Preserva o botão "Todos" e calcula a contagem real de produtos ativos por categoria.
+ */
+function populateTopCategoriesBar() {
+  const categoriesGrid = document.querySelector('.categories__grid');
+  if (!categoriesGrid) return;
+
+  const totalActive = publicCatalogProducts.length;
+
+  // Mapa de contagem de produtos ativos por category_id
+  const countByCatId = {};
+  publicCatalogProducts.forEach((p) => {
+    if (p.category_id) {
+      countByCatId[p.category_id] = (countByCatId[p.category_id] || 0) + 1;
+    }
+  });
+
+  // Ícones representativos automáticos por palavra-chave do nome da categoria
+  function getCategoryEmoji(name) {
+    const n = (name || '').toLowerCase();
+    if (n.includes('anim')) return '🐾';
+    if (n.includes('her') || n.includes('hero')) return '🦸';
+    if (n.includes('esport') || n.includes('sport')) return '⚽';
+    if (n.includes('gam') || n.includes('jog')) return '🎮';
+    if (n.includes('custom') || n.includes('person')) return '✏️';
+    if (n.includes('veic') || n.includes('auto') || n.includes('carr')) return '🏎️';
+    if (n.includes('clas') || n.includes('retr')) return '🕰️';
+    return '🚗';
+  }
+
+  // Se não existirem categorias cadastradas ou consulta falhou
+  if (!publicCatalogCategories || publicCatalogCategories.length === 0) {
+    categoriesGrid.innerHTML = `
+      <button class="category-card category-card--active" data-filter="todos" type="button">
+        <span class="category-card__icon">🚗</span>
+        <span class="category-card__label">Todos</span>
+        <span class="category-card__count">${totalActive}</span>
+      </button>
+    `;
+    return;
+  }
+
+  let html = `
+    <button class="category-card ${publicCatalogFilters.category === 'all' ? 'category-card--active' : ''}" data-filter="todos" type="button">
+      <span class="category-card__icon">🚗</span>
+      <span class="category-card__label">Todos</span>
+      <span class="category-card__count">${totalActive}</span>
+    </button>
+  `;
+
+  publicCatalogCategories.forEach((cat) => {
+    const count = countByCatId[cat.id] || 0;
+    const isAct = publicCatalogFilters.category === cat.id;
+    const icon = getCategoryEmoji(cat.name);
+
+    html += `
+      <button class="category-card ${isAct ? 'category-card--active' : ''}" data-filter="${escapeHTML(cat.id)}" type="button">
+        <span class="category-card__icon">${icon}</span>
+        <span class="category-card__label">${escapeHTML(cat.name)}</span>
+        <span class="category-card__count">${count}</span>
+      </button>
+    `;
+  });
+
+  categoriesGrid.innerHTML = html;
 }
 
 // ----------------------------------------------------------------------------
@@ -598,7 +679,36 @@ function initCatalogEvents() {
       const resetEmptyBtn = e.target.closest('.btn-reset-from-empty');
       if (resetEmptyBtn) {
         resetPublicCatalogFilters();
+        return;
       }
+
+      const retryBtn = e.target.closest('.btn-retry-catalog');
+      if (retryBtn) {
+        loadCatalog();
+        return;
+      }
+    });
+  }
+
+  // Delegação de eventos para os botões de categorias do topo (.categories__grid)
+  const topCategoriesGrid = document.querySelector('.categories__grid');
+  if (topCategoriesGrid) {
+    topCategoriesGrid.addEventListener('click', (e) => {
+      const catBtn = e.target.closest('.category-card');
+      if (!catBtn) return;
+
+      const filterVal = catBtn.getAttribute('data-filter') || 'todos';
+
+      // Rolar suavemente para a seção de produtos se o usuário estiver acima dela
+      const productsSection = document.getElementById('produtos');
+      if (productsSection) {
+        const rect = productsSection.getBoundingClientRect();
+        if (rect.top < -200 || rect.top > 600) {
+          productsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+
+      setCategoryFilter(filterVal);
     });
   }
 
@@ -625,10 +735,25 @@ function initCatalogEvents() {
 
 /**
  * Carrega e renderiza os produtos reais da tabela public.products.
+ * Gerencia os estados: loading -> sucesso / vazio / erro com retry (Etapa 3K).
  */
 async function loadCatalog() {
+  const grid = document.getElementById('products-grid');
+  const countBadge = document.getElementById('catalog-count-badge');
   const subtitle = document.getElementById('products-subtitle');
+
   if (subtitle) subtitle.textContent = 'Carregando produtos do Supabase...';
+  if (countBadge) countBadge.textContent = 'Carregando produtos...';
+
+  // Exibe estado visual de carregamento na grade
+  if (grid) {
+    grid.innerHTML = `
+      <div class="catalog-loading-state" id="catalog-loading-state">
+        <div class="catalog-loading-spinner" aria-hidden="true"></div>
+        <p class="catalog-loading-text">Carregando catálogo oficial...</p>
+      </div>
+    `;
+  }
 
   const [productsRes, categoriesRes] = await Promise.all([
     fetchProductsFromSupabase(),
@@ -643,11 +768,27 @@ async function loadCatalog() {
   if (productsRes.success) {
     publicCatalogProducts = productsRes.data || [];
     console.info(`✅ [MascotCar] Catálogo Supabase carregado! ${publicCatalogProducts.length} produtos ativos.`);
+    populateTopCategoriesBar();
     renderPublicCatalog();
   } else {
     console.warn('⚠️ [MascotCar] Não foi possível obter os produtos de public.products:', productsRes.error?.message || productsRes.error);
     if (subtitle) {
-      subtitle.textContent = '⚠️ Não foi possível carregar os produtos do catálogo no momento.';
+      subtitle.textContent = '⚠️ Erro de conexão com o catálogo';
+    }
+    if (countBadge) {
+      countBadge.textContent = 'Falha no carregamento';
+    }
+    if (grid) {
+      grid.innerHTML = `
+        <div class="catalog-error-state">
+          <span class="catalog-error-icon" aria-hidden="true">⚠️</span>
+          <h3 class="catalog-error-title">Não foi possível carregar os produtos</h3>
+          <p class="catalog-error-desc">Verifique sua conexão com a internet e tente novamente.</p>
+          <button type="button" class="btn btn--primary btn--sm catalog-btn-retry btn-retry-catalog">
+            <span>🔄 Tentar Novamente</span>
+          </button>
+        </div>
+      `;
     }
   }
 }
@@ -659,6 +800,7 @@ window.MascotCarData = {
   getCategories: fetchCategoriesFromSupabase,
   loadCatalog: loadCatalog,
   renderCatalog: renderPublicCatalog,
+  populateTopCategoriesBar: populateTopCategoriesBar,
   setCategoryFilter: setCategoryFilter,
   resetFilters: resetPublicCatalogFilters,
   openDetailModal: openProductDetailModal,

@@ -2202,3 +2202,70 @@ body.no-announcement {
   max-width: 480px;
   margin: 0 auto 1.25rem;
 }
+
+/* Estado de carregamento do catálogo público (Etapa 3K) */
+.catalog-loading-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 4.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.catalog-loading-spinner {
+  width: 42px;
+  height: 42px;
+  border: 3px solid rgba(255, 87, 34, 0.15);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: catalog-spin 0.8s linear infinite;
+}
+
+@keyframes catalog-spin {
+  to { transform: rotate(360deg); }
+}
+
+.catalog-loading-text {
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+/* Estado de erro com ação de retry (Etapa 3K) */
+.catalog-error-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 3.5rem 1.5rem;
+  background: var(--color-bg-alt);
+  border: 2px dashed rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-lg);
+}
+
+.catalog-error-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+
+.catalog-error-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.catalog-error-desc {
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  max-width: 480px;
+  margin: 0 auto 1.25rem;
+}
+
+.catalog-btn-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
