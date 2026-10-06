@@ -128,6 +128,124 @@
   }
 
   /**
+   * Sanitiza o número de telefone brasileiro para o formato internacional aceito pelo WhatsApp (DDI 55 + DDD + Número).
+   * @param {string|null} phoneStr
+   * @returns {string|null} Retorna os dígitos com DDI 55 ou null se inválido/ausente.
+   */
+  function sanitizeBrazilianPhoneNumber(phoneStr) {
+    if (!phoneStr) return null;
+    let digits = String(phoneStr).replace(/\D/g, '');
+    if (!digits) return null;
+
+    // Se já começar com 55 e tiver tamanho compatível (ex: 55 + 10 ou 11 dígitos = 12 ou 13 dígitos)
+    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+      return digits;
+    }
+
+    // Se for número nacional com DDD (10 dígitos para fixo ou 11 dígitos para celular)
+    if (digits.length === 10 || digits.length === 11) {
+      return `55${digits}`;
+    }
+
+    return null;
+  }
+
+  /**
+   * Constrói o link oficial do WhatsApp com mensagem contextualizada para atendimento do lojista (Etapa 3N.4.5).
+   * @param {Object} order
+   * @returns {string|null} Retorna a URL https://wa.me/... ou null se o telefone for ausente/inválido.
+   */
+  function buildAdminOrderWhatsAppLink(order) {
+    if (!order) return null;
+    const sanitizedPhone = sanitizeBrazilianPhoneNumber(order.customer_phone);
+    if (!sanitizedPhone) return null;
+
+    const customerName = (order.customer_name || 'Cliente').trim();
+    const orderCode = order.order_code || '—';
+    const statusMeta = getStatusMeta(order.status);
+    const totalItems = order.total_items || 0;
+    const totalAmount = formatCurrency(order.total_amount || 0);
+
+    let statusContextMsg = '';
+    switch (order.status) {
+      case 'received':
+        statusContextMsg = 'Recebemos seu pedido e ele está aguardando confirmação.';
+        break;
+      case 'confirmed':
+        statusContextMsg = 'Seu pedido foi confirmado e está aguardando preparação.';
+        break;
+      case 'preparing':
+        statusContextMsg = 'Seu pedido está sendo preparado.';
+        break;
+      case 'ready':
+        statusContextMsg = 'Seu pedido está pronto para retirada!';
+        break;
+      case 'completed':
+        statusContextMsg = 'Seu pedido foi concluído. Agradecemos pela preferência!';
+        break;
+      case 'cancelled':
+        statusContextMsg = 'Seu pedido foi cancelado. Se precisar de ajuda, estamos à disposição.';
+        break;
+      case 'expired':
+        statusContextMsg = 'A reserva do seu pedido expirou. Se precisar de ajuda para realizar um novo pedido, estamos à disposição.';
+        break;
+      default:
+        statusContextMsg = 'Estamos à disposição para ajudar com o seu pedido.';
+        break;
+    }
+
+    let msg = `Olá, ${customerName}! Aqui é da MascotCar. Estou entrando em contato sobre o seu pedido ${orderCode}.\n\n`;
+    msg += `Status atual: ${statusMeta.label}.\n\n`;
+    msg += `Quantidade de itens: ${totalItems} (${totalItems === 1 ? 'item' : 'itens'}).\n`;
+    msg += `Valor total: ${totalAmount}.\n\n`;
+    msg += statusContextMsg;
+
+    return `https://wa.me/${sanitizedPhone}?text=${encodeURIComponent(msg)}`;
+  }
+
+  /**
+   * Renderiza a área de telefone e o botão de WhatsApp no modal de detalhes.
+   * @param {Object} order
+   */
+  function renderCustomerPhoneField(order) {
+    const phoneEl = UI.modalCustomerPhone();
+    if (!phoneEl) return;
+
+    const rawPhone = order.customer_phone ? String(order.customer_phone).trim() : '';
+    if (!rawPhone) {
+      phoneEl.innerHTML = `<span style="color: var(--text-dim);">Não informado (WhatsApp indisponível)</span>`;
+      return;
+    }
+
+    const waUrl = buildAdminOrderWhatsAppLink(order);
+
+    if (waUrl) {
+      phoneEl.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start;">
+          <span style="font-weight: 600; color: var(--text-main);">📱 ${escapeHtml(rawPhone)}</span>
+          <a
+            href="${escapeHtml(waUrl)}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn-order-whatsapp"
+            title="Abrir WhatsApp com mensagem predefinida sobre o pedido"
+          >
+            <span>💬</span> Enviar mensagem pelo WhatsApp
+          </a>
+        </div>
+      `;
+    } else {
+      // Telefone com formato inválido/incompatível
+      phoneEl.innerHTML = `
+        <div style="display: flex; flex-direction: column; gap: 0.2rem; align-items: flex-start;">
+          <span style="font-weight: 600; color: var(--text-main);">📱 ${escapeHtml(rawPhone)}</span>
+          <span style="font-size: 0.75rem; color: #fca5a5;">⚠️ Número fora do padrão nacional (WhatsApp indisponível)</span>
+        </div>
+      `;
+    }
+  }
+
+  /**
    * Calcula o tempo restante de reserva para exibição amigável.
    * @param {string} expiresAt
    * @returns {{text: string, isExpired: boolean, isUrgent: boolean}}
@@ -627,15 +745,7 @@
     }
 
     if (nameEl) nameEl.textContent = order.customer_name || 'Não informado';
-    if (phoneEl) {
-      const phone = order.customer_phone || '';
-      if (phone) {
-        const clean = phone.replace(/\D/g, '');
-        phoneEl.innerHTML = `<a href="https://wa.me/55${clean}" target="_blank" rel="noopener noreferrer" style="color: var(--primary); text-decoration: underline;" title="Conversar no WhatsApp">📱 ${escapeHtml(phone)}</a>`;
-      } else {
-        phoneEl.textContent = 'Não informado';
-      }
-    }
+    renderCustomerPhoneField(order);
     if (notesEl) notesEl.textContent = order.notes || 'Nenhuma observação informada pelo cliente.';
 
     // Exibição da reserva
@@ -1157,6 +1267,9 @@
             } else {
               if (resBoxEl) resBoxEl.style.display = 'none';
             }
+
+            // Atualiza link de WhatsApp com a mensagem contextualizada para o novo status
+            renderCustomerPhoneField(freshOrder);
           }
         }
       }
