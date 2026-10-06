@@ -1629,6 +1629,31 @@ function showFormFeedback(message, type = 'warn') {
 }
 
 /**
+ * Constrói a URL do WhatsApp para atendimento de um pedido sem expor tokens ou dados sensíveis.
+ * @param {Object} params
+ * @param {string} params.orderCode
+ * @param {number|string} params.totalAmount
+ * @param {number|string} params.totalItems
+ * @param {string} [params.customerName]
+ * @param {string} [params.statusLabel]
+ * @returns {string}
+ */
+function buildOrderWhatsAppLink({ orderCode, totalAmount, totalItems, customerName, statusLabel }) {
+  let msg = 'Olá! Gostaria de falar sobre meu pedido na MascotCar.\n\n';
+  msg += `*Código do Pedido:* ${orderCode}\n`;
+  if (statusLabel) {
+    msg += `*Status:* ${statusLabel}\n`;
+  }
+  if (customerName) {
+    msg += `*Cliente:* ${customerName}\n`;
+  }
+  msg += `*Total:* ${formatCurrency(totalAmount)} (${totalItems} ${totalItems === 1 ? 'item' : 'itens'})\n\n`;
+  msg += 'Gostaria de confirmar os detalhes do meu pedido. Obrigado!';
+
+  return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+}
+
+/**
  * Abre o Modal de Confirmação com timer de reserva e link seguro de WhatsApp e tracking.
  */
 function openOrderSuccessModal(orderData, accessToken, customerName, items) {
@@ -1676,14 +1701,13 @@ function openOrderSuccessModal(orderData, accessToken, customerName, items) {
 
   // Monta mensagem oficial do WhatsApp contendo o código real do pedido (sem token)
   if (waBtn) {
-    const waText =
-      `Olá! Acabei de registrar meu pedido no site da MascotCar.\n\n` +
-      `*Código do Pedido:* ${orderData.order_code}\n` +
-      `*Cliente:* ${customerName}\n` +
-      `*Total:* ${formatCurrency(orderData.total_amount)} (${orderData.total_items} itens)\n\n` +
-      `Gostaria de confirmar o pedido e combinar os detalhes. Obrigado!`;
-
-    waBtn.href = `https://wa.me/?text=${encodeURIComponent(waText)}`;
+    waBtn.href = buildOrderWhatsAppLink({
+      orderCode: orderData.order_code,
+      totalAmount: orderData.total_amount,
+      totalItems: orderData.total_items,
+      customerName: customerName,
+      statusLabel: 'RECEBIDO'
+    });
   }
 
   // Inicia timer de 30 minutos regressivos
@@ -1797,6 +1821,9 @@ async function openOrderTrackingModal(orderCode, token) {
   });
   document.body.style.overflow = 'hidden';
 
+  const trackWaBtn = document.getElementById('order-tracking-btn-whatsapp');
+  if (trackWaBtn) trackWaBtn.style.display = 'none';
+
   if (!token) {
     if (subtitleEl) subtitleEl.textContent = 'Acesso Restrito';
     bodyEl.innerHTML = `
@@ -1886,7 +1913,22 @@ async function openOrderTrackingModal(orderCode, token) {
       </div>
     `;
 
+    // Configura o botão do WhatsApp com os dados do pedido (sem token)
+    const trackWaBtn = document.getElementById('order-tracking-btn-whatsapp');
+    if (trackWaBtn) {
+      const totalUnits = (order.items || []).reduce((acc, it) => acc + (it.quantity || 1), 0);
+      trackWaBtn.href = buildOrderWhatsAppLink({
+        orderCode: order.order_code,
+        totalAmount: order.total_amount,
+        totalItems: totalUnits || 1,
+        statusLabel: stInfo.label
+      });
+      trackWaBtn.style.display = 'inline-flex';
+    }
+
   } catch (e) {
+    const trackWaBtn = document.getElementById('order-tracking-btn-whatsapp');
+    if (trackWaBtn) trackWaBtn.style.display = 'none';
     bodyEl.innerHTML = `<p style="color: #c53030; text-align: center;">Erro ao carregar detalhes do pedido.</p>`;
   }
 }
@@ -1898,11 +1940,200 @@ function closeOrderTrackingModal() {
   const modal = document.getElementById('order-tracking-backdrop');
   if (!modal) return;
 
+  const trackWaBtn = document.getElementById('order-tracking-btn-whatsapp');
+  if (trackWaBtn) trackWaBtn.style.display = 'none';
+
   modal.classList.remove('is-open');
   setTimeout(() => {
     modal.style.display = 'none';
     document.body.style.overflow = '';
   }, 200);
+}
+
+/* ==========================================================================
+   MEUS PEDIDOS (Etapa 3N.3)
+   ========================================================================== */
+
+/**
+ * Obtém os pedidos salvos localmente em mascotcar_orders_v1.
+ */
+function getLocalOrdersList() {
+  try {
+    const raw = localStorage.getItem(ORDERS_STORAGE_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * Abre o Modal de Meus Pedidos e renderiza os registros locais.
+ */
+function openCustomerOrdersModal() {
+  const backdrop = document.getElementById('customer-orders-backdrop');
+  if (!backdrop) return;
+
+  renderCustomerOrdersList();
+
+  backdrop.style.display = 'flex';
+  requestAnimationFrame(() => {
+    backdrop.classList.add('is-open');
+  });
+  document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Fecha o Modal de Meus Pedidos.
+ */
+function closeCustomerOrdersModal() {
+  const backdrop = document.getElementById('customer-orders-backdrop');
+  if (!backdrop) return;
+
+  backdrop.classList.remove('is-open');
+  setTimeout(() => {
+    backdrop.style.display = 'none';
+    document.body.style.overflow = '';
+  }, 200);
+}
+
+/**
+ * Renderiza a listagem de pedidos locais em #customer-orders-list.
+ */
+function renderCustomerOrdersList() {
+  const container = document.getElementById('customer-orders-list');
+  if (!container) return;
+
+  const orders = getLocalOrdersList();
+
+  if (orders.length === 0) {
+    container.innerHTML = `
+      <div class="customer-orders-empty">
+        <span class="customer-orders-empty__icon" aria-hidden="true">📦</span>
+        <p class="customer-orders-empty__text">
+          Você ainda não realizou nenhum pedido neste navegador.
+        </p>
+        <button type="button" class="btn btn--primary btn--md" id="customer-orders-btn-explore">
+          Explorar catálogo
+        </button>
+      </div>
+    `;
+
+    const exploreBtn = document.getElementById('customer-orders-btn-explore');
+    if (exploreBtn) {
+      exploreBtn.addEventListener('click', () => {
+        closeCustomerOrdersModal();
+        const catalogSec = document.getElementById('produtos');
+        if (catalogSec) {
+          catalogSec.scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    }
+    return;
+  }
+
+  const statusMap = {
+    received: { label: 'Recebido', cls: 'received' },
+    confirmed: { label: 'Confirmado', cls: 'confirmed' },
+    preparing: { label: 'Em Preparação', cls: 'preparing' },
+    ready: { label: 'Pronto', cls: 'ready' },
+    completed: { label: 'Concluído', cls: 'completed' },
+    cancelled: { label: 'Cancelado', cls: 'cancelled' },
+    expired: { label: 'Expirado', cls: 'expired' }
+  };
+
+  const now = Date.now();
+
+  container.innerHTML = orders.map((ord) => {
+    const code = escapeHTML(ord.orderCode || 'MC-00000');
+    const total = typeof ord.totalAmount === 'number' ? formatCurrency(ord.totalAmount) : 'R$ 0,00';
+    const itemsCount = ord.totalItems || 1;
+    const itemsText = itemsCount === 1 ? '1 item' : `${itemsCount} itens`;
+    const st = ord.status || 'received';
+    const stInfo = statusMap[st] || { label: st, cls: 'received' };
+
+    let dateStr = '';
+    if (ord.createdAt) {
+      const d = new Date(ord.createdAt);
+      dateStr = !isNaN(d.getTime()) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    }
+
+    // Calcula tempo de reserva restante a partir de reservationExpiresAt
+    let reserveHtml = '';
+    if (ord.reservationExpiresAt) {
+      const expTime = new Date(ord.reservationExpiresAt).getTime();
+      const diffMs = expTime - now;
+
+      if (diffMs > 0) {
+        const mins = Math.ceil(diffMs / 60000);
+        reserveHtml = `
+          <span class="customer-orders-item__reserve customer-orders-item__reserve--active">
+            ⏱️ Reserva ativa — ${mins} min
+          </span>
+        `;
+      } else {
+        reserveHtml = `
+          <span class="customer-orders-item__reserve customer-orders-item__reserve--expired">
+            Reserva expirada
+          </span>
+        `;
+      }
+    }
+
+    return `
+      <div class="customer-orders-item">
+        <div class="customer-orders-item__top">
+          <span class="customer-orders-item__code">${code}</span>
+          <span class="order-status-badge order-status-badge--${stInfo.cls}">${stInfo.label}</span>
+        </div>
+
+        <div class="customer-orders-item__info">
+          <div>
+            <div class="customer-orders-item__amount">${total} • ${itemsText}</div>
+            ${dateStr ? `<div class="customer-orders-item__date">${dateStr}</div>` : ''}
+          </div>
+          ${reserveHtml ? `<div>${reserveHtml}</div>` : ''}
+        </div>
+
+        <div class="customer-orders-item__actions">
+          <button type="button" class="btn btn--outline btn--sm customer-orders-btn-track" data-order-code="${code}">
+            Ver acompanhamento
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Adiciona evento de clique aos botões de acompanhamento
+  const trackBtns = container.querySelectorAll('.customer-orders-btn-track');
+  trackBtns.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const orderCode = btn.getAttribute('data-order-code');
+      if (!orderCode) return;
+
+      const token = getLocalAccessToken(orderCode);
+      // Abre diretamente sem alterar o hash da URL
+      openOrderTrackingModal(orderCode, token);
+    });
+  });
+}
+
+/**
+ * Limpa o histórico local sob confirmação explícita do cliente.
+ */
+function clearCustomerOrdersLocalHistory() {
+  const confirmed = window.confirm(
+    'Isso remove os pedidos salvos neste dispositivo. Seus pedidos não serão apagados da MascotCar. Deseja continuar?'
+  );
+
+  if (!confirmed) return;
+
+  try {
+    localStorage.removeItem(ORDERS_STORAGE_KEY);
+  } catch (e) {}
+
+  renderCustomerOrdersList();
 }
 
 /**
@@ -2110,6 +2341,11 @@ function initCartEvents() {
   // 13. Acessibilidade por Teclado (Escape para todos os Modais)
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      const ordersEl = document.getElementById('customer-orders-backdrop');
+      if (ordersEl && ordersEl.style.display === 'flex') {
+        closeCustomerOrdersModal();
+        return;
+      }
       const trackEl = document.getElementById('order-tracking-backdrop');
       if (trackEl && trackEl.style.display === 'flex') {
         closeOrderTrackingModal();
@@ -2132,7 +2368,35 @@ function initCartEvents() {
     }
   });
 
-  // 14. Listener para mudanças no hash de tracking (#pedido=...&token=...)
+  // 14. Eventos de Meus Pedidos (Etapa 3N.3)
+  const openOrdersBtn = document.getElementById('open-my-orders-btn');
+  if (openOrdersBtn) {
+    openOrdersBtn.addEventListener('click', openCustomerOrdersModal);
+  }
+
+  const closeOrdersBtn = document.getElementById('customer-orders-close');
+  if (closeOrdersBtn) {
+    closeOrdersBtn.addEventListener('click', closeCustomerOrdersModal);
+  }
+
+  const closeOrdersActionBtn = document.getElementById('customer-orders-btn-close');
+  if (closeOrdersActionBtn) {
+    closeOrdersActionBtn.addEventListener('click', closeCustomerOrdersModal);
+  }
+
+  const ordersBackdrop = document.getElementById('customer-orders-backdrop');
+  if (ordersBackdrop) {
+    ordersBackdrop.addEventListener('click', (e) => {
+      if (e.target === ordersBackdrop) closeCustomerOrdersModal();
+    });
+  }
+
+  const clearOrdersBtn = document.getElementById('customer-orders-btn-clear');
+  if (clearOrdersBtn) {
+    clearOrdersBtn.addEventListener('click', clearCustomerOrdersLocalHistory);
+  }
+
+  // 15. Listener para mudanças no hash de tracking (#pedido=...&token=...)
   window.addEventListener('hashchange', checkAndHandleUrlTracking);
   checkAndHandleUrlTracking();
 }
@@ -2157,7 +2421,10 @@ window.MascotCarData = {
   openCart: openCartDrawer,
   closeCart: closeCartDrawer,
   openReview: openOrderReviewModal,
-  closeReview: closeOrderReviewModal
+  closeReview: closeOrderReviewModal,
+  // Métodos de Meus Pedidos (Etapa 3N.3)
+  openMyOrders: openCustomerOrdersModal,
+  closeMyOrders: closeCustomerOrdersModal
 };
 
 // Executa o carregamento quando o DOM estiver pronto

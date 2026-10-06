@@ -64,6 +64,11 @@
 
       <!-- Ações do Header (Minha Lista & Hamburger) -->
       <div class="header__actions">
+        <button type="button" class="btn-header-orders" id="open-my-orders-btn" aria-label="Abrir Meus pedidos" title="Meus pedidos">
+          <span class="btn-header-orders__icon" aria-hidden="true">📦</span>
+          <span class="btn-header-orders__text">Meus pedidos</span>
+        </button>
+
         <button type="button" class="btn-header-cart" id="open-cart-btn" aria-label="Abrir Minha lista de pedido" title="Minha lista de pedido">
           <span class="btn-header-cart__icon" aria-hidden="true">🛍️</span>
           <span class="btn-header-cart__text">Minha lista</span>
@@ -657,6 +662,35 @@
     </div>
   </div>
 
+  <!-- ========== MODAL DE MEUS PEDIDOS (Etapa 3N.3) ========== -->
+  <div class="customer-orders-backdrop" id="customer-orders-backdrop" role="dialog" aria-modal="true" aria-labelledby="customer-orders-title" style="display: none;">
+    <div class="customer-orders-card">
+      <div class="customer-orders-header">
+        <div class="customer-orders-title-wrap">
+          <span class="customer-orders-icon" aria-hidden="true">📦</span>
+          <div>
+            <h2 class="customer-orders-title" id="customer-orders-title">Meus Pedidos</h2>
+            <p class="customer-orders-subtitle">Pedidos realizados neste dispositivo.</p>
+          </div>
+        </div>
+        <button type="button" class="customer-orders-close" id="customer-orders-close" aria-label="Fechar Meus pedidos">✕</button>
+      </div>
+
+      <div class="customer-orders-body" id="customer-orders-list">
+        <!-- Renderizado dinamicamente via JS a partir de mascotcar_orders_v1 -->
+      </div>
+
+      <div class="customer-orders-footer">
+        <button type="button" class="customer-orders-btn-clear" id="customer-orders-btn-clear">
+          🗑️ Limpar histórico local
+        </button>
+        <button type="button" class="btn btn--outline btn--md" id="customer-orders-btn-close">
+          Fechar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== MODAL DE RASTREAMENTO DO PEDIDO (Via Hash #pedido & #token) ========== -->
   <div class="order-tracking-backdrop" id="order-tracking-backdrop" role="dialog" aria-modal="true" aria-labelledby="order-tracking-title" style="display: none;">
     <div class="order-tracking-card">
@@ -679,6 +713,9 @@
       </div>
 
       <div class="order-tracking-actions">
+        <a href="#" class="btn btn--primary btn--md order-btn-whatsapp" id="order-tracking-btn-whatsapp" target="_blank" rel="noopener noreferrer" style="display: none;">
+          💬 Conversar no WhatsApp sobre este pedido
+        </a>
         <button type="button" class="btn btn--outline btn--md" id="order-tracking-btn-close">
           Fechar
         </button>
