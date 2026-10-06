@@ -757,6 +757,19 @@
   }
 
   /**
+   * Helper para desabilitar/habilitar todos os botões de ação do modal de pedidos.
+   * @param {boolean} disabled
+   */
+  function setModalActionsDisabled(disabled) {
+    const actionsBox = UI.modalActionsContainer();
+    if (!actionsBox) return;
+    const buttons = actionsBox.querySelectorAll('button');
+    buttons.forEach((btn) => {
+      btn.disabled = disabled;
+    });
+  }
+
+  /**
    * Renderiza os botões de ação permitidos no modal de acordo com o status atual.
    * @param {HTMLElement} container
    * @param {Object} order
@@ -771,10 +784,10 @@
       const isExpired = new Date(order.reservation_expires_at).getTime() <= Date.now();
       if (isExpired) {
         buttonsHtml = `
-          <div style="display: flex; gap: 0.5rem; width: 100%; justify-content: space-between; align-items: center;">
-            <span style="font-size: 0.85rem; color: var(--danger);">⚠️ Reserva expirada. O pedido não pode mais ser confirmado.</span>
-            <button type="button" class="btn btn-outline-danger btn-sm" id="btn-action-cancel" style="width: auto;">
-              ✕ Registrar Cancelamento
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 0.5rem;">
+            <span style="font-size: 0.85rem; color: var(--danger);">⚠️ Reserva expirada. Nenhuma ação operacional permitida.</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-close-order-modal-secondary" style="width: auto;">
+              Fechar
             </button>
           </div>
         `;
@@ -808,7 +821,7 @@
       buttonsHtml = `
         <div style="display: flex; gap: 0.75rem; width: 100%; justify-content: space-between; align-items: center; flex-wrap: wrap;">
           <button type="button" class="btn btn-outline-danger btn-sm" id="btn-action-cancel" style="width: auto;">
-            ✕ Cancelar Pedido (RPC cancel_order)
+            ✕ Cancelar Pedido
           </button>
           <div style="display: flex; gap: 0.5rem; align-items: center;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-action-next-status" data-next="${nextStatus}" style="width: auto;">
@@ -885,9 +898,11 @@
       return;
     }
 
+    // Bloqueia todos os botões de ação do modal contra ações concorrentes
+    setModalActionsDisabled(true);
+
     const confirmBtn = document.getElementById('btn-action-confirm');
     if (confirmBtn) {
-      confirmBtn.disabled = true;
       confirmBtn.innerHTML = '<span>Confirmando...</span>';
     }
 
@@ -898,8 +913,8 @@
 
       if (error) {
         showModalAlert(`Falha ao confirmar pedido: ${error.message}`, 'error');
+        setModalActionsDisabled(false);
         if (confirmBtn) {
-          confirmBtn.disabled = false;
           confirmBtn.innerHTML = '<span>✓ Confirmar Pedido</span>';
         }
         return;
@@ -916,8 +931,8 @@
       }, 700);
     } catch (err) {
       showModalAlert(`Erro inesperado: ${err.message || err}`, 'error');
+      setModalActionsDisabled(false);
       if (confirmBtn) {
-        confirmBtn.disabled = false;
         confirmBtn.innerHTML = '<span>✓ Confirmar Pedido</span>';
       }
     }
@@ -940,9 +955,11 @@
       return;
     }
 
+    // Bloqueia todos os botões de ação do modal contra ações concorrentes
+    setModalActionsDisabled(true);
+
     const cancelBtn = document.getElementById('btn-action-cancel');
     if (cancelBtn) {
-      cancelBtn.disabled = true;
       cancelBtn.innerHTML = '<span>Cancelando...</span>';
     }
 
@@ -954,8 +971,8 @@
 
       if (error) {
         showModalAlert(`Falha ao cancelar pedido: ${error.message}`, 'error');
+        setModalActionsDisabled(false);
         if (cancelBtn) {
-          cancelBtn.disabled = false;
           cancelBtn.innerHTML = '<span>✕ Cancelar Pedido</span>';
         }
         return;
@@ -972,8 +989,8 @@
       }, 700);
     } catch (err) {
       showModalAlert(`Erro inesperado: ${err.message || err}`, 'error');
+      setModalActionsDisabled(false);
       if (cancelBtn) {
-        cancelBtn.disabled = false;
         cancelBtn.innerHTML = '<span>✕ Cancelar Pedido</span>';
       }
     }
@@ -1003,9 +1020,11 @@
       return;
     }
 
+    // Bloqueia todos os botões de ação do modal contra ações concorrentes
+    setModalActionsDisabled(true);
+
     const btn = document.getElementById('btn-action-next-status');
     if (btn) {
-      btn.disabled = true;
       btn.innerHTML = '<span>Salvando...</span>';
     }
 
@@ -1018,8 +1037,8 @@
 
       if (rpcError) {
         showModalAlert(`Falha ao alterar status: ${rpcError.message}`, 'error');
+        setModalActionsDisabled(false);
         if (btn) {
-          btn.disabled = false;
           btn.innerHTML = `<span>${nextMeta.label}</span>`;
         }
         return;
@@ -1032,8 +1051,8 @@
       }, 500);
     } catch (err) {
       showModalAlert(`Erro inesperado: ${err.message || err}`, 'error');
+      setModalActionsDisabled(false);
       if (btn) {
-        btn.disabled = false;
         btn.innerHTML = `<span>${nextMeta.label}</span>`;
       }
     }
