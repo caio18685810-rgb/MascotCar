@@ -1323,10 +1323,14 @@ function openOrderReviewModal() {
 
   const reviewBackdrop = document.getElementById('order-review-backdrop');
   const reviewBody = document.getElementById('order-review-body');
-  const reviewSummary = document.getElementById('order-review-summary');
-  const sendBtn = document.getElementById('order-review-btn-send');
+  const feedbackEl = document.getElementById('checkout-form-feedback');
 
-  if (!reviewBackdrop || !reviewBody || !reviewSummary || !sendBtn) return;
+  if (!reviewBackdrop || !reviewBody) return;
+
+  if (feedbackEl) {
+    feedbackEl.style.display = 'none';
+    feedbackEl.textContent = '';
+  }
 
   lastFocusedElementBeforeReview = document.activeElement;
 
@@ -1354,24 +1358,13 @@ function openOrderReviewModal() {
     `;
   }).join('');
 
-  reviewSummary.innerHTML = `
-    <span class="order-review-summary__label">${totalUnits} ${totalUnits === 1 ? 'item' : 'itens'} selecionados</span>
-    <span class="order-review-summary__total">${formatCurrency(totalPrice)}</span>
-  `;
-
-  // Prepara link oficial sem inventar número comercial
-  const waMsg = buildWhatsAppOrderMessage(selectedItems);
-  sendBtn.href = `https://wa.me/?text=${encodeURIComponent(waMsg)}`;
-
   closeCartDrawer();
   reviewBackdrop.style.display = 'flex';
 
   requestAnimationFrame(() => {
     reviewBackdrop.classList.add('is-open');
-    const closeBtn = document.getElementById('order-review-close');
-    if (closeBtn && typeof closeBtn.focus === 'function') {
-      closeBtn.focus();
-    }
+    const nameInput = document.getElementById('checkout-customer-name');
+    if (nameInput) nameInput.focus();
   });
 
   document.body.style.overflow = 'hidden';
@@ -1392,6 +1385,523 @@ function closeOrderReviewModal() {
       lastFocusedElementBeforeReview.focus();
       lastFocusedElementBeforeReview = null;
     }
+  }, 200);
+}
+
+// Chaves de armazenamento local da Etapa 3N.2
+const CHECKOUT_PENDING_STORAGE_KEY = 'mascotcar_checkout_pending_v1';
+const ORDERS_STORAGE_KEY = 'mascotcar_orders_v1';
+
+let isSubmittingCheckout = false;
+let orderTimerInterval = null;
+
+/**
+ * Obtém ou inicializa o client_request_id estável para idempotência.
+ */
+function getOrCreateClientRequestId() {
+  try {
+    const raw = localStorage.getItem(CHECKOUT_PENDING_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.requestId === 'string') {
+        return parsed.requestId;
+      }
+    }
+  } catch (e) {}
+
+  const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : (function() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  })();
+
+  try {
+    localStorage.setItem(CHECKOUT_PENDING_STORAGE_KEY, JSON.stringify({
+      requestId: newId,
+      createdAt: new Date().toISOString()
+    }));
+  } catch (e) {}
+
+  return newId;
+}
+
+/**
+ * Remove o client_request_id pendente após sucesso confirmado.
+ */
+function clearPendingClientRequestId() {
+  try {
+    localStorage.removeItem(CHECKOUT_PENDING_STORAGE_KEY);
+  } catch (e) {}
+}
+
+/**
+ * Salva o pedido criado no histórico local do navegador para tracking.
+ */
+function saveOrderToLocalHistory(orderData) {
+  try {
+    const raw = localStorage.getItem(ORDERS_STORAGE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    const existingIndex = list.findIndex(o => o.orderCode === orderData.orderCode);
+    if (existingIndex >= 0) {
+      list[existingIndex] = { ...list[existingIndex], ...orderData };
+    } else {
+      list.unshift(orderData);
+    }
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(list.slice(0, 30)));
+  } catch (e) {}
+}
+
+/**
+ * Busca o access_token salvo localmente no navegador por orderCode.
+ */
+function getLocalAccessToken(orderCode) {
+  try {
+    const raw = localStorage.getItem(ORDERS_STORAGE_KEY);
+    if (!raw) return null;
+    const list = JSON.parse(raw);
+    const found = list.find(o => o.orderCode === orderCode);
+    return found ? found.accessToken : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Executa a submissão formal do checkout chamando exclusivamente a RPC public.create_order.
+ */
+async function submitOrderCheckout() {
+  if (isSubmittingCheckout) return;
+
+  const nameInput = document.getElementById('checkout-customer-name');
+  const phoneInput = document.getElementById('checkout-customer-phone');
+  const notesInput = document.getElementById('checkout-customer-notes');
+  const feedbackEl = document.getElementById('checkout-form-feedback');
+  const submitBtn = document.getElementById('order-review-btn-submit');
+
+  if (!nameInput || !phoneInput || !submitBtn) return;
+
+  const customerName = nameInput.value.trim();
+  const customerPhone = phoneInput.value.trim();
+  const notes = notesInput ? notesInput.value.trim() : '';
+
+  if (!customerName) {
+    showFormFeedback('Por favor, informe seu nome completo.', 'warn');
+    nameInput.focus();
+    return;
+  }
+
+  if (!customerPhone || customerPhone.replace(/\D/g, '').length < 8) {
+    showFormFeedback('Por favor, informe um número de telefone/WhatsApp válido.', 'warn');
+    phoneInput.focus();
+    return;
+  }
+
+  // Monta lista de itens selecionados e disponíveis
+  const itemsPayload = [];
+  const purchasedProductIds = [];
+
+  for (const item of cartItems) {
+    if (!selectedCartProductIds.has(item.productId)) continue;
+    const p = publicCatalogProducts.find(prod => prod.id === item.productId);
+    if (p && p.active && (p.stock || 0) > 0) {
+      itemsPayload.push({
+        product_id: item.productId,
+        quantity: item.quantity
+      });
+      purchasedProductIds.push(item.productId);
+    }
+  }
+
+  if (itemsPayload.length === 0) {
+    showFormFeedback('Não há produtos disponíveis selecionados para finalizar o pedido.', 'warn');
+    return;
+  }
+
+  // Ativa trava de submissão e estado de loading
+  isSubmittingCheckout = true;
+  submitBtn.disabled = true;
+  submitBtn.classList.add('btn--loading');
+  submitBtn.textContent = 'Processando reserva...';
+  if (feedbackEl) feedbackEl.style.display = 'none';
+
+  const clientRequestId = getOrCreateClientRequestId();
+
+  try {
+    const { data, error } = await supabaseClient.rpc('create_order', {
+      p_client_request_id: clientRequestId,
+      p_customer_name: customerName,
+      p_customer_phone: customerPhone,
+      p_notes: notes,
+      p_items: itemsPayload
+    });
+
+    if (error) {
+      handleCheckoutError(error);
+      return;
+    }
+
+    if (!data || !data.success) {
+      showFormFeedback('Não foi possível registrar o pedido no momento. Tente novamente.', 'error');
+      return;
+    }
+
+    // Sucesso confirmado pela autoridade do banco!
+    clearPendingClientRequestId();
+
+    // Limpa somente os itens que foram comprados
+    cartItems = cartItems.filter(item => !purchasedProductIds.includes(item.productId));
+    purchasedProductIds.forEach(id => selectedCartProductIds.delete(id));
+    saveCartToStorage();
+    updateCartBadge();
+    renderCartDrawer();
+
+    // Determina o access_token (original retornado ou recuperado do local storage em caso de idempotência)
+    let finalToken = data.access_token;
+    if (!finalToken && data.is_idempotent) {
+      finalToken = getLocalAccessToken(data.order_code);
+    }
+
+    // Salva no histórico local seguro para consultas futuras
+    saveOrderToLocalHistory({
+      orderId: data.order_id,
+      orderCode: data.order_code,
+      accessToken: finalToken,
+      totalAmount: data.total_amount,
+      totalItems: data.total_items,
+      status: data.status,
+      reservationExpiresAt: data.reservation_expires_at,
+      createdAt: new Date().toISOString()
+    });
+
+    // Fecha revisão e abre modal de sucesso oficial
+    closeOrderReviewModal();
+    openOrderSuccessModal(data, finalToken, customerName, itemsPayload);
+
+  } catch (err) {
+    showFormFeedback('Falha de conexão com o servidor. Verifique sua internet e tente novamente.', 'error');
+  } finally {
+    isSubmittingCheckout = false;
+    submitBtn.disabled = false;
+    submitBtn.classList.remove('btn--loading');
+    submitBtn.textContent = '🛍️ Confirmar e Criar Pedido';
+  }
+}
+
+/**
+ * Mapeia e apresenta os erros retornados pela RPC create_order sem expor SQL/internos.
+ */
+function handleCheckoutError(error) {
+  const code = error.code;
+  const msg = error.message || '';
+
+  if (code === '22023') {
+    showFormFeedback('Dados incompletos ou inválidos: ' + msg, 'warn');
+  } else if (code === 'P0001') {
+    // Informa que o estoque/disponibilidade mudou sem forçar alteração silenciosa
+    showFormFeedback('Atenção: ' + msg + ' Por favor, revise as quantidades na sua lista.', 'warn');
+  } else if (code === 'P0002') {
+    showFormFeedback('Um dos itens selecionados não foi encontrado no catálogo. A lista foi sincronizada.', 'warn');
+    syncCartWithCatalog();
+  } else {
+    showFormFeedback('Ocorreu uma instabilidade temporária ao processar seu pedido. Por favor, tente novamente.', 'error');
+  }
+}
+
+/**
+ * Exibe feedback de validação ou erro no formulário de revisão.
+ */
+function showFormFeedback(message, type = 'warn') {
+  const el = document.getElementById('checkout-form-feedback');
+  if (!el) return;
+
+  el.textContent = message;
+  el.style.display = 'block';
+  if (type === 'warn') {
+    el.style.background = '#fffaf0';
+    el.style.color = '#c05621';
+    el.style.border = '1px solid #feebc8';
+  } else {
+    el.style.background = '#fff5f5';
+    el.style.color = '#c53030';
+    el.style.border = '1px solid #fed7d7';
+  }
+}
+
+/**
+ * Abre o Modal de Confirmação com timer de reserva e link seguro de WhatsApp e tracking.
+ */
+function openOrderSuccessModal(orderData, accessToken, customerName, items) {
+  const modal = document.getElementById('order-success-backdrop');
+  const codeEl = document.getElementById('order-success-code');
+  const summaryEl = document.getElementById('order-success-summary');
+  const timerEl = document.getElementById('order-success-timer');
+  const timerFillEl = document.getElementById('order-success-timer-fill');
+  const waBtn = document.getElementById('order-success-btn-whatsapp');
+  const copyBtn = document.getElementById('order-success-btn-copy-link');
+
+  if (!modal) return;
+
+  if (codeEl) codeEl.textContent = orderData.order_code;
+
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div style="font-size: 0.875rem; color: var(--color-text);">
+        <div><strong>Total de itens:</strong> ${orderData.total_items}</div>
+        <div><strong>Valor Total:</strong> ${formatCurrency(orderData.total_amount)}</div>
+        <div><strong>Modalidade:</strong> Retirada / A combinar via WhatsApp</div>
+      </div>
+    `;
+  }
+
+  // Prepara link de tracking seguro usando fragmento (#pedido=...&token=...)
+  const trackingFragment = accessToken
+    ? `#pedido=${encodeURIComponent(orderData.order_code)}&token=${encodeURIComponent(accessToken)}`
+    : `#pedido=${encodeURIComponent(orderData.order_code)}`;
+
+  const trackingFullUrl = window.location.origin + window.location.pathname + trackingFragment;
+
+  if (copyBtn) {
+    copyBtn.onclick = () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(trackingFullUrl).then(() => {
+          copyBtn.textContent = '✓ Copiado!';
+          setTimeout(() => { copyBtn.textContent = '📋 Copiar Link'; }, 2500);
+        });
+      } else {
+        prompt('Copie o link seguro de acompanhamento:', trackingFullUrl);
+      }
+    };
+  }
+
+  // Monta mensagem oficial do WhatsApp contendo o código real do pedido (sem token)
+  if (waBtn) {
+    const waText =
+      `Olá! Acabei de registrar meu pedido no site da MascotCar.\n\n` +
+      `*Código do Pedido:* ${orderData.order_code}\n` +
+      `*Cliente:* ${customerName}\n` +
+      `*Total:* ${formatCurrency(orderData.total_amount)} (${orderData.total_items} itens)\n\n` +
+      `Gostaria de confirmar o pedido e combinar os detalhes. Obrigado!`;
+
+    waBtn.href = `https://wa.me/?text=${encodeURIComponent(waText)}`;
+  }
+
+  // Inicia timer de 30 minutos regressivos
+  startReservationCountdown(orderData.reservation_expires_at, timerEl, timerFillEl);
+
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => {
+    modal.classList.add('is-open');
+  });
+  document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Fecha o Modal de Sucesso do Pedido.
+ */
+function closeOrderSuccessModal() {
+  const modal = document.getElementById('order-success-backdrop');
+  if (!modal) return;
+
+  if (orderTimerInterval) clearInterval(orderTimerInterval);
+
+  modal.classList.remove('is-open');
+  setTimeout(() => {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
+  }, 200);
+}
+
+/**
+ * Gerencia o contador regressivo de 30 minutos da reserva temporária.
+ */
+function startReservationCountdown(expiresAtIso, labelEl, fillEl) {
+  if (orderTimerInterval) clearInterval(orderTimerInterval);
+
+  const expiresTime = new Date(expiresAtIso).getTime();
+  const totalDurationMs = 30 * 60 * 1000;
+
+  function update() {
+    const now = Date.now();
+    const remainingMs = Math.max(0, expiresTime - now);
+
+    const minutes = Math.floor(remainingMs / 60000);
+    const seconds = Math.floor((remainingMs % 60000) / 1000);
+
+    if (labelEl) {
+      labelEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    if (fillEl) {
+      const pct = Math.min(100, Math.max(0, (remainingMs / totalDurationMs) * 100));
+      fillEl.style.width = `${pct}%`;
+    }
+
+    if (remainingMs <= 0) {
+      clearInterval(orderTimerInterval);
+      if (labelEl) labelEl.textContent = 'Reserva Expirada';
+    }
+  }
+
+  update();
+  orderTimerInterval = setInterval(update, 1000);
+}
+
+/**
+ * Inspeciona o fragmento da URL (#pedido=...&token=...) e abre o tracking seguro.
+ */
+async function checkAndHandleUrlTracking() {
+  const hash = window.location.hash;
+  if (!hash || !hash.includes('pedido=')) return;
+
+  const rawHash = hash.replace(/^#/, '');
+  const params = new URLSearchParams(rawHash);
+
+  const orderCode = params.get('pedido');
+  let token = params.get('token');
+
+  if (!orderCode) return;
+
+  // Se não veio no hash, verifica se o navegador possui o token salvo localmente
+  if (!token) {
+    token = getLocalAccessToken(orderCode);
+  }
+
+  openOrderTrackingModal(orderCode, token);
+}
+
+/**
+ * Abre o modal de rastreamento e consulta o pedido via get_order_tracking.
+ */
+async function openOrderTrackingModal(orderCode, token) {
+  const modal = document.getElementById('order-tracking-backdrop');
+  const titleEl = document.getElementById('order-tracking-title');
+  const subtitleEl = document.getElementById('order-tracking-subtitle');
+  const bodyEl = document.getElementById('order-tracking-body');
+
+  if (!modal || !bodyEl) return;
+
+  if (titleEl) titleEl.textContent = `Pedido ${escapeHTML(orderCode)}`;
+  if (subtitleEl) subtitleEl.textContent = 'Consultando status em tempo real...';
+
+  bodyEl.innerHTML = `
+    <div class="order-tracking-loading" style="text-align: center; padding: 2rem;">
+      <div class="catalog-loading-spinner" aria-hidden="true"></div>
+      <p style="margin-top: 0.75rem; color: var(--color-text-muted);">Consultando status seguro do pedido...</p>
+    </div>
+  `;
+
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => {
+    modal.classList.add('is-open');
+  });
+  document.body.style.overflow = 'hidden';
+
+  if (!token) {
+    if (subtitleEl) subtitleEl.textContent = 'Acesso Restrito';
+    bodyEl.innerHTML = `
+      <div style="text-align: center; padding: 1.5rem;">
+        <span style="font-size: 2rem;">🔒</span>
+        <h3 style="font-size: 1.05rem; margin-top: 0.5rem; color: #c53030;">Chave de Acesso Necessária</h3>
+        <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.5rem;">
+          Por razões de segurança, os detalhes do pedido só podem ser visualizados com o link de acompanhamento original gerado neste dispositivo.
+        </p>
+      </div>
+    `;
+    return;
+  }
+
+  try {
+    const { data, error } = await supabaseClient.rpc('get_order_tracking', {
+      p_order_code: orderCode,
+      p_access_token: token
+    });
+
+    if (error || !data || !data.success) {
+      if (subtitleEl) subtitleEl.textContent = 'Não Encontrado';
+      bodyEl.innerHTML = `
+        <div style="text-align: center; padding: 1.5rem;">
+          <span style="font-size: 2rem;">⚠️</span>
+          <h3 style="font-size: 1.05rem; margin-top: 0.5rem; color: #c53030;">Acesso Não Autorizado</h3>
+          <p style="font-size: 0.85rem; color: var(--color-text-muted); margin-top: 0.5rem;">
+            O código do pedido ou a chave de acesso não conferem. Verifique o link de acompanhamento oficial.
+          </p>
+        </div>
+      `;
+      return;
+    }
+
+    const order = data.order;
+    const statusMap = {
+      received: { label: 'Recebido (Aguardando Loja)', cls: 'received' },
+      confirmed: { label: 'Confirmado', cls: 'confirmed' },
+      preparing: { label: 'Em Preparação', cls: 'preparing' },
+      ready: { label: 'Pronto para Retirada', cls: 'ready' },
+      completed: { label: 'Concluído', cls: 'completed' },
+      cancelled: { label: 'Cancelado', cls: 'cancelled' },
+      expired: { label: 'Expirado', cls: 'expired' }
+    };
+
+    const stInfo = statusMap[order.status] || { label: order.status, cls: 'received' };
+
+    if (subtitleEl) subtitleEl.textContent = `Status: ${stInfo.label}`;
+
+    let itemsHtml = (order.items || []).map(it => `
+      <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--color-border); font-size: 0.875rem;">
+        <div>
+          <strong>${escapeHTML(it.product_name)}</strong>
+          <div style="font-size: 0.775rem; color: var(--color-text-muted);">${it.quantity} un. × ${formatCurrency(it.unit_price)}</div>
+        </div>
+        <div>${formatCurrency(it.subtotal)}</div>
+      </div>
+    `).join('');
+
+    let historyHtml = (order.history || []).map(h => `
+      <div class="order-timeline-node">
+        <div style="font-weight: 600;">${statusMap[h.status] ? statusMap[h.status].label : h.status}</div>
+        <div class="order-timeline-time">${new Date(h.created_at).toLocaleString('pt-BR')} ${h.comment ? '— ' + escapeHTML(h.comment) : ''}</div>
+      </div>
+    `).join('');
+
+    bodyEl.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-bg-alt); padding: 0.75rem 1rem; border-radius: var(--radius-md);">
+        <span style="font-size: 0.85rem; font-weight: 600;">Status do Pedido:</span>
+        <span class="order-status-badge order-status-badge--${stInfo.cls}">${stInfo.label}</span>
+      </div>
+
+      <div>
+        <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--color-text-muted);">Itens do Pedido</h4>
+        ${itemsHtml}
+        <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; font-weight: 800; font-size: 1rem;">
+          <span>Total:</span>
+          <span>${formatCurrency(order.total_amount)}</span>
+        </div>
+      </div>
+
+      <div>
+        <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--color-text-muted);">Linha do Tempo</h4>
+        <div class="order-tracking-timeline">
+          ${historyHtml}
+        </div>
+      </div>
+    `;
+
+  } catch (e) {
+    bodyEl.innerHTML = `<p style="color: #c53030; text-align: center;">Erro ao carregar detalhes do pedido.</p>`;
+  }
+}
+
+/**
+ * Fecha o Modal de Rastreamento.
+ */
+function closeOrderTrackingModal() {
+  const modal = document.getElementById('order-tracking-backdrop');
+  if (!modal) return;
+
+  modal.classList.remove('is-open');
+  setTimeout(() => {
+    modal.style.display = 'none';
+    document.body.style.overflow = '';
   }, 200);
 }
 
@@ -1555,9 +2065,61 @@ function initCartEvents() {
     });
   }
 
-  // 10. Acessibilidade por Teclado (Escape para Drawer e Revisão)
+  // 10. Submissão do Checkout
+  const submitCheckoutBtn = document.getElementById('order-review-btn-submit');
+  if (submitCheckoutBtn) {
+    submitCheckoutBtn.addEventListener('click', submitOrderCheckout);
+  }
+
+  // 11. Eventos do Modal de Sucesso
+  const successCloseBtn = document.getElementById('order-success-close');
+  if (successCloseBtn) {
+    successCloseBtn.addEventListener('click', closeOrderSuccessModal);
+  }
+
+  const successDoneBtn = document.getElementById('order-success-btn-done');
+  if (successDoneBtn) {
+    successDoneBtn.addEventListener('click', closeOrderSuccessModal);
+  }
+
+  const successBackdrop = document.getElementById('order-success-backdrop');
+  if (successBackdrop) {
+    successBackdrop.addEventListener('click', (e) => {
+      if (e.target === successBackdrop) closeOrderSuccessModal();
+    });
+  }
+
+  // 12. Eventos do Modal de Tracking
+  const trackingCloseBtn = document.getElementById('order-tracking-close');
+  if (trackingCloseBtn) {
+    trackingCloseBtn.addEventListener('click', closeOrderTrackingModal);
+  }
+
+  const trackingDoneBtn = document.getElementById('order-tracking-btn-close');
+  if (trackingDoneBtn) {
+    trackingDoneBtn.addEventListener('click', closeOrderTrackingModal);
+  }
+
+  const trackingBackdrop = document.getElementById('order-tracking-backdrop');
+  if (trackingBackdrop) {
+    trackingBackdrop.addEventListener('click', (e) => {
+      if (e.target === trackingBackdrop) closeOrderTrackingModal();
+    });
+  }
+
+  // 13. Acessibilidade por Teclado (Escape para todos os Modais)
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      const trackEl = document.getElementById('order-tracking-backdrop');
+      if (trackEl && trackEl.style.display === 'flex') {
+        closeOrderTrackingModal();
+        return;
+      }
+      const successEl = document.getElementById('order-success-backdrop');
+      if (successEl && successEl.style.display === 'flex') {
+        closeOrderSuccessModal();
+        return;
+      }
       const revEl = document.getElementById('order-review-backdrop');
       if (revEl && revEl.style.display === 'flex') {
         closeOrderReviewModal();
@@ -1569,6 +2131,10 @@ function initCartEvents() {
       }
     }
   });
+
+  // 14. Listener para mudanças no hash de tracking (#pedido=...&token=...)
+  window.addEventListener('hashchange', checkAndHandleUrlTracking);
+  checkAndHandleUrlTracking();
 }
 
 // Expõe helpers globais de forma limpa para depuração e extensibilidade

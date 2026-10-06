@@ -576,17 +576,112 @@
         <!-- Itens a serem enviados renderizados aqui -->
       </div>
 
-      <div class="order-review-summary" id="order-review-summary">
-        <!-- Totais calculados -->
+      <div class="order-review-form-wrap" style="padding: 1rem 1.5rem; border-top: 1px solid var(--color-border); background: var(--color-bg-alt);">
+        <h3 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--color-text);">Dados para Contato e Identificação</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+          <div>
+            <label for="checkout-customer-name" style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem;">Seu Nome *</label>
+            <input type="text" id="checkout-customer-name" class="catalog-search-input" placeholder="Ex: Carlos Silva" required style="width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.5rem 0.75rem; font-size: 0.875rem;" />
+          </div>
+          <div>
+            <label for="checkout-customer-phone" style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem;">WhatsApp / Telefone *</label>
+            <input type="tel" id="checkout-customer-phone" class="catalog-search-input" placeholder="Ex: (11) 98888-7777" required style="width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.5rem 0.75rem; font-size: 0.875rem;" />
+          </div>
+        </div>
+        <div>
+          <label for="checkout-customer-notes" style="display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.25rem;">Observações do Pedido (opcional)</label>
+          <textarea id="checkout-customer-notes" class="catalog-search-input" placeholder="Ex: Detalhes sobre personalização ou horário preferencial..." rows="2" style="width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 0.5rem 0.75rem; font-size: 0.875rem; resize: vertical;"></textarea>
+        </div>
+        <div id="checkout-form-feedback" role="alert" style="display: none; margin-top: 0.75rem; padding: 0.625rem 0.875rem; border-radius: var(--radius-md); font-size: 0.825rem; font-weight: 600;"></div>
       </div>
 
       <div class="order-review-actions">
         <button type="button" class="btn btn--outline btn--lg" id="order-review-btn-back">
           Voltar para minha lista
         </button>
-        <a href="#" class="btn btn--primary btn--lg" id="order-review-btn-send" target="_blank" rel="noopener noreferrer">
-          💬 Enviar pedido pelo WhatsApp
+        <button type="button" class="btn btn--primary btn--lg" id="order-review-btn-submit">
+          🛍️ Confirmar e Criar Pedido
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL DE PEDIDO CONFIRMADO & TRACKING (Etapa 3N.2) ========== -->
+  <div class="order-success-backdrop" id="order-success-backdrop" role="dialog" aria-modal="true" aria-labelledby="order-success-title" style="display: none;">
+    <div class="order-success-card">
+      <div class="order-success-header">
+        <span class="order-success-badge-icon" aria-hidden="true">🎉</span>
+        <h2 class="order-success-title" id="order-success-title">Pedido Criado com Sucesso!</h2>
+        <p class="order-success-subtitle">Sua reserva de estoque está ativa por 30 minutos.</p>
+        <button type="button" class="order-success-close" id="order-success-close" aria-label="Fechar confirmação">✕</button>
+      </div>
+
+      <div class="order-success-body">
+        <div class="order-code-banner">
+          <span class="order-code-label">Código do Pedido:</span>
+          <span class="order-code-val" id="order-success-code">MC-00000</span>
+        </div>
+
+        <div class="order-timer-wrap">
+          <div class="order-timer-info">
+            <span>⏱️ Tempo restante de reserva:</span>
+            <strong id="order-success-timer">30:00</strong>
+          </div>
+          <div class="order-timer-bar">
+            <div class="order-timer-bar-fill" id="order-success-timer-fill" style="width: 100%;"></div>
+          </div>
+          <small class="order-timer-hint">Após 30 minutos, itens não confirmados voltam ao catálogo.</small>
+        </div>
+
+        <div class="order-success-summary" id="order-success-summary">
+          <!-- Resumo de itens e total retornado pela RPC -->
+        </div>
+
+        <div class="order-success-tracking-box">
+          <div class="order-success-tracking-head">
+            <span>🔗 Link Seguro de Acompanhamento:</span>
+            <button type="button" class="btn-copy-tracking" id="order-success-btn-copy-link">📋 Copiar Link</button>
+          </div>
+          <small class="order-tracking-hint">Guarde este link para consultar o status em tempo real neste dispositivo.</small>
+        </div>
+      </div>
+
+      <div class="order-success-actions">
+        <a href="#" class="btn btn--primary btn--lg order-btn-whatsapp" id="order-success-btn-whatsapp" target="_blank" rel="noopener noreferrer">
+          💬 Abrir Pedido no WhatsApp
         </a>
+        <button type="button" class="btn btn--outline btn--lg" id="order-success-btn-done">
+          Voltar ao Catálogo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MODAL DE RASTREAMENTO DO PEDIDO (Via Hash #pedido & #token) ========== -->
+  <div class="order-tracking-backdrop" id="order-tracking-backdrop" role="dialog" aria-modal="true" aria-labelledby="order-tracking-title" style="display: none;">
+    <div class="order-tracking-card">
+      <div class="order-tracking-header">
+        <div class="order-tracking-title-wrap">
+          <span class="order-tracking-icon" aria-hidden="true">📦</span>
+          <div>
+            <h2 class="order-tracking-title" id="order-tracking-title">Acompanhar Pedido</h2>
+            <p class="order-tracking-subtitle" id="order-tracking-subtitle">Carregando status do pedido...</p>
+          </div>
+        </div>
+        <button type="button" class="order-tracking-close" id="order-tracking-close" aria-label="Fechar rastreamento">✕</button>
+      </div>
+
+      <div class="order-tracking-body" id="order-tracking-body">
+        <div class="order-tracking-loading">
+          <div class="catalog-loading-spinner" aria-hidden="true"></div>
+          <p>Consultando status seguro do pedido...</p>
+        </div>
+      </div>
+
+      <div class="order-tracking-actions">
+        <button type="button" class="btn btn--outline btn--md" id="order-tracking-btn-close">
+          Fechar
+        </button>
       </div>
     </div>
   </div>

@@ -2965,3 +2965,330 @@ body.no-announcement {
     display: none;
   }
 }
+
+/* ==========================================================================
+   MODAIS DE CHECKOUT, SUCESSO & TRACKING (Etapa 3N.2)
+   ========================================================================== */
+
+/* Feedback visual de loading em botões */
+.btn--loading {
+  position: relative;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.btn--loading::after {
+  content: '';
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spinLoading 0.6s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes spinLoading {
+  to { transform: rotate(360deg); }
+}
+
+/* Modal de Sucesso */
+.order-success-backdrop,
+.order-tracking-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.order-success-backdrop.is-open,
+.order-tracking-backdrop.is-open {
+  opacity: 1;
+}
+
+.order-success-card,
+.order-tracking-card {
+  background: #fff;
+  border-radius: var(--radius-xl);
+  max-width: 540px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: scaleUpModal 0.25s ease-out;
+}
+
+@keyframes scaleUpModal {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.order-success-header {
+  padding: 1.5rem 1.5rem 1rem;
+  text-align: center;
+  position: relative;
+  background: linear-gradient(180deg, #f0fff4 0%, #fff 100%);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.order-success-badge-icon {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.order-success-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #276749;
+  margin-bottom: 0.25rem;
+}
+
+.order-success-subtitle {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
+.order-success-close,
+.order-tracking-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition);
+}
+
+.order-success-close:hover,
+.order-tracking-close:hover {
+  color: var(--color-text);
+}
+
+.order-success-body,
+.order-tracking-body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Código em Destaque */
+.order-code-banner {
+  background: var(--color-bg-alt);
+  border: 2px dashed #38a169;
+  border-radius: var(--radius-lg);
+  padding: 0.875rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.order-code-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.order-code-val {
+  font-size: 1.75rem;
+  font-weight: 900;
+  color: #22543d;
+  letter-spacing: 0.08em;
+  font-family: monospace;
+}
+
+/* Timer Regressivo */
+.order-timer-wrap {
+  background: #fffaf0;
+  border: 1px solid #feebc8;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.order-timer-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #c05621;
+}
+
+.order-timer-bar {
+  height: 6px;
+  background: #fed7d7;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.order-timer-bar-fill {
+  height: 100%;
+  background: #dd6b20;
+  transition: width 1s linear;
+}
+
+.order-timer-hint {
+  font-size: 0.725rem;
+  color: #9c4221;
+}
+
+/* Link de Tracking Seguro */
+.order-success-tracking-box {
+  background: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+}
+
+.order-success-tracking-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 0.25rem;
+}
+
+.btn-copy-tracking {
+  background: #edf2f7;
+  border: 1px solid var(--color-border);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-copy-tracking:hover {
+  background: #e2e8f0;
+}
+
+.order-tracking-hint {
+  font-size: 0.725rem;
+  color: var(--color-text-muted);
+}
+
+.order-success-actions,
+.order-tracking-actions {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+  background: #fff;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.order-btn-whatsapp {
+  background: #25d366 !important;
+  border-color: #25d366 !important;
+  color: #fff !important;
+}
+
+.order-btn-whatsapp:hover {
+  background: #1ebd58 !important;
+}
+
+/* Header & Itens de Tracking */
+.order-tracking-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.order-tracking-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.order-tracking-icon {
+  font-size: 1.75rem;
+}
+
+.order-tracking-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.order-tracking-subtitle {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.order-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.order-status-badge--received { background: #e2e8f0; color: #2d3748; }
+.order-status-badge--confirmed { background: #bee3f8; color: #2b6cb0; }
+.order-status-badge--preparing { background: #feebc8; color: #c05621; }
+.order-status-badge--ready { background: #c6f6d5; color: #22543d; }
+.order-status-badge--completed { background: #9ae6b4; color: #1c4532; }
+.order-status-badge--cancelled { background: #fed7d7; color: #9b2c2c; }
+.order-status-badge--expired { background: #edf2f7; color: #718096; }
+
+.order-tracking-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-left: 2px solid var(--color-border);
+  padding-left: 1rem;
+  margin-left: 0.5rem;
+}
+
+.order-timeline-node {
+  position: relative;
+  font-size: 0.8rem;
+}
+
+.order-timeline-node::before {
+  content: '';
+  position: absolute;
+  left: -1.35rem;
+  top: 0.25rem;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+}
+
+.order-timeline-time {
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+}
