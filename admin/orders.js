@@ -34,6 +34,11 @@
   // Intervalo do timer de atualização visual das reservas
   let reservationTimerInterval = null;
 
+  // Polling automático e silencioso (Etapa 3N.4.4)
+  const POLLING_INTERVAL_MS = 30000; // 30 segundos
+  let ordersPollingInterval = null;
+  let isPollingRunning = false;
+
   /**
    * Retorna a instância ativa do cliente Supabase.
    * @returns {Object|null}
@@ -1100,6 +1105,87 @@
   }
 
   /**
+   * Executa uma rodada de polling inteligente e silenciosa dos pedidos.
+   */
+  async function executeSilentOrdersPolling() {
+    // 1. Evita requests sobrepostos se uma rodada anterior ainda estiver em andamento
+    if (isPollingRunning) return;
+
+    // 2. Não executa polling se a aba do navegador estiver em background
+    if (typeof document !== 'undefined' && document.hidden) return;
+
+    // 3. Não executa polling se a seção de pedidos não estiver visível na tela
+    const secOrders = document.getElementById('orders-section');
+    if (!secOrders || secOrders.style.display === 'none') return;
+
+    // 4. Não executa polling se uma requisição operacional (confirmar/cancelar/transição) estiver em andamento
+    const actionsBox = UI.modalActionsContainer();
+    if (actionsBox && actionsBox.querySelector('button[disabled]')) {
+      const isOperating = actionsBox.textContent.includes('Confirmando...') ||
+                          actionsBox.textContent.includes('Cancelando...') ||
+                          actionsBox.textContent.includes('Salvando...');
+      if (isOperating) return;
+    }
+
+    isPollingRunning = true;
+    try {
+      // Reutiliza a consulta padrão sem disparar loading visual intrusivo
+      const result = await fetchOrders();
+      if (result.success && Array.isArray(result.data)) {
+        loadedOrders = result.data;
+        renderOrdersTable();
+
+        // Se o modal de detalhes estiver aberto, atualiza silenciosamente os dados básicos do pedido
+        if (currentDetailOrder && currentDetailOrder.id) {
+          const freshOrder = loadedOrders.find((o) => o.id === currentDetailOrder.id);
+          if (freshOrder) {
+            currentDetailOrder = freshOrder;
+            const badgeEl = UI.modalStatusBadge();
+            const resTimerEl = UI.modalReservationTimer();
+            const resBoxEl = UI.modalReservationBox();
+
+            if (badgeEl) {
+              const meta = getStatusMeta(freshOrder.status);
+              badgeEl.className = `order-badge ${meta.className}`;
+              badgeEl.innerHTML = `<span class="order-badge__dot"></span> ${meta.label}`;
+            }
+
+            if (freshOrder.status === 'received' && freshOrder.reservation_expires_at) {
+              if (resBoxEl) resBoxEl.style.display = 'flex';
+              const timeInfo = calculateReservationTime(freshOrder.reservation_expires_at);
+              if (resTimerEl) resTimerEl.textContent = timeInfo.text;
+            } else {
+              if (resBoxEl) resBoxEl.style.display = 'none';
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ [MascotCar Orders] Falha silenciosa no polling:', err);
+    } finally {
+      isPollingRunning = false;
+    }
+  }
+
+  /**
+   * Inicia o polling periódico silencioso dos pedidos.
+   */
+  function startOrdersPolling() {
+    stopOrdersPolling();
+    ordersPollingInterval = setInterval(executeSilentOrdersPolling, POLLING_INTERVAL_MS);
+  }
+
+  /**
+   * Interrompe o polling dos pedidos garantindo referência única.
+   */
+  function stopOrdersPolling() {
+    if (ordersPollingInterval) {
+      clearInterval(ordersPollingInterval);
+      ordersPollingInterval = null;
+    }
+  }
+
+  /**
    * Configura abas de navegação no painel administrativo (Produtos vs Pedidos).
    */
   function initNavigationTabs() {
@@ -1115,11 +1201,13 @@
         if (secOrders) secOrders.style.display = 'block';
         if (secProducts) secProducts.style.display = 'none';
         refreshOrders(true);
+        startOrdersPolling();
       } else {
         if (navProducts) navProducts.classList.add('active');
         if (navOrders) navOrders.classList.remove('active');
         if (secProducts) secProducts.style.display = 'block';
         if (secOrders) secOrders.style.display = 'none';
+        stopOrdersPolling();
       }
     }
 
@@ -1136,6 +1224,19 @@
         setActiveTab('orders');
       });
     }
+
+    // Gerencia visibilidade da aba do navegador para pausar/retomar polling
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopOrdersPolling();
+      } else {
+        if (secOrders && secOrders.style.display === 'block') {
+          // Ao retornar ao primeiro plano, atualiza imediatamente e reinicia o ciclo
+          executeSilentOrdersPolling();
+          startOrdersPolling();
+        }
+      }
+    });
 
     // Expõe troca de abas para chamadas externas
     window.MascotCarOrdersSwitchTab = setActiveTab;
@@ -1259,6 +1360,8 @@
     openOrderDetailModal,
     closeOrderDetailModal,
     resetFilters,
+    startPolling: startOrdersPolling,
+    stopPolling: stopOrdersPolling,
     getLoadedOrders: () => [...loadedOrders]
   };
 })();
