@@ -59,8 +59,18 @@
     <main class="admin-container" role="main">
       <div class="admin-header">
         <h1 class="admin-title">Painel de Controle</h1>
-        <p class="admin-desc">Gestão de produtos e catálogo da MascotCar.</p>
+        <p class="admin-desc">Gestão de catálogo e acompanhamento operacional da MascotCar.</p>
       </div>
+
+      <!-- Barra de Navegação entre Seções do Painel -->
+      <nav class="admin-tabs-nav" aria-label="Navegação do Painel">
+        <button type="button" id="tab-nav-products" class="admin-tab-btn active" title="Gerenciar Catálogo e Produtos">
+          <span>📦</span> Catálogo de Produtos
+        </button>
+        <button type="button" id="tab-nav-orders" class="admin-tab-btn" title="Acompanhar e Processar Pedidos">
+          <span>🛍️</span> Pedidos dos Clientes
+        </button>
+      </nav>
 
       <!-- Card de Status da Autenticação -->
       <section class="card">
@@ -218,6 +228,124 @@
               </thead>
               <tbody id="products-table-body">
                 <!-- Linhas inseridas dinamicamente por products.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Seção de Pedidos (Etapa 3N) -->
+      <section id="orders-section" class="card" style="display: none;">
+        <div class="section-header">
+          <div class="section-header-title">
+            <h2 class="card-title" style="margin-bottom: 0;">
+              <span>🛍️</span> Pedidos dos Clientes
+            </h2>
+            <span id="orders-count-badge" class="count-badge">Carregando...</span>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button id="orders-refresh-btn" class="btn btn-secondary btn-sm" title="Recarregar pedidos">
+              🔄 Atualizar
+            </button>
+          </div>
+        </div>
+
+        <!-- 1. Estado de Carregamento dos Pedidos -->
+        <div id="orders-loading" class="products-state-box" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem;">
+          <div class="spinner"></div>
+          <p class="products-state-desc">Carregando pedidos do Supabase...</p>
+        </div>
+
+        <!-- 2. Estado de Erro dos Pedidos -->
+        <div id="orders-error" class="products-state-box" style="display: none;">
+          <div class="products-state-icon">⚠️</div>
+          <h3 class="products-state-title">Erro ao Carregar Pedidos</h3>
+          <p id="orders-error-message" class="products-state-desc" style="color: #fca5a5; margin-bottom: 1.25rem;">
+            Não foi possível consultar os pedidos no banco de dados.
+          </p>
+          <button id="orders-retry-btn" class="btn btn-primary btn-sm" style="width: auto; margin: 0 auto;">
+            Tentar Novamente
+          </button>
+        </div>
+
+        <!-- 3. Estado Vazio dos Pedidos -->
+        <div id="orders-empty" class="products-state-box" style="display: none;">
+          <div class="products-state-icon">🛍️</div>
+          <h3 class="products-state-title">Nenhum Pedido Registrado</h3>
+          <p class="products-state-desc">
+            Assim que os clientes finalizarem pedidos no catálogo, eles aparecerão organizados aqui para processamento e acompanhamento.
+          </p>
+        </div>
+
+        <!-- 4. Conteúdo Principal e Tabela de Pedidos -->
+        <div id="orders-content" style="display: none;">
+          <!-- Abas / Filtros por Categoria de Status (Etapa 3N.4.2) -->
+          <div class="orders-category-tabs" role="tablist" aria-label="Filtrar pedidos por categoria de status">
+            <button type="button" class="orders-category-tab" data-category="active" role="tab" aria-selected="true" id="tab-orders-active">
+              <span class="category-tab-label">Ativos</span>
+              <span class="category-tab-count" id="count-orders-active">0</span>
+            </button>
+            <button type="button" class="orders-category-tab" data-category="all" role="tab" aria-selected="false" id="tab-orders-all">
+              <span class="category-tab-label">Todos</span>
+              <span class="category-tab-count" id="count-orders-all">0</span>
+            </button>
+            <button type="button" class="orders-category-tab" data-category="completed" role="tab" aria-selected="false" id="tab-orders-completed">
+              <span class="category-tab-label">Finalizados</span>
+              <span class="category-tab-count" id="count-orders-completed">0</span>
+            </button>
+            <button type="button" class="orders-category-tab" data-category="expired" role="tab" aria-selected="false" id="tab-orders-expired">
+              <span class="category-tab-label">Expirados</span>
+              <span class="category-tab-count" id="count-orders-expired">0</span>
+            </button>
+            <button type="button" class="orders-category-tab" data-category="cancelled" role="tab" aria-selected="false" id="tab-orders-cancelled">
+              <span class="category-tab-label">Cancelados</span>
+              <span class="category-tab-count" id="count-orders-cancelled">0</span>
+            </button>
+          </div>
+
+          <!-- Barra de Filtros e Busca de Pedidos -->
+          <div class="products-toolbar">
+            <div class="toolbar-search-wrap">
+              <span class="search-icon" aria-hidden="true">🔍</span>
+              <input type="search" id="orders-search-input" class="toolbar-search-input" placeholder="Buscar por código (MC-XXXXX), nome ou telefone..." aria-label="Buscar pedidos" autocomplete="off">
+            </div>
+
+            <div class="toolbar-filters-group">
+              <!-- Filtro por Status -->
+              <div class="toolbar-select-wrap">
+                <label for="orders-status-filter" class="toolbar-select-label">Status:</label>
+                <select id="orders-status-filter" class="toolbar-select" aria-label="Filtrar pedidos por status">
+                  <option value="all">Todos os status</option>
+                  <option value="received">🟡 Recebidos</option>
+                  <option value="confirmed">🔵 Confirmados</option>
+                  <option value="preparing">🟣 Em preparação</option>
+                  <option value="ready">🟢 Prontos</option>
+                  <option value="completed">✅ Concluídos</option>
+                  <option value="cancelled">🔴 Cancelados</option>
+                  <option value="expired">⚪ Expirados</option>
+                </select>
+              </div>
+
+              <!-- Botão Limpar Filtros -->
+              <button type="button" id="orders-reset-filters-btn" class="btn btn-secondary btn-sm" style="display: none; width: auto; padding: 0.45rem 0.75rem; white-space: nowrap;" title="Redefinir busca e filtros">Limpar filtros</button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-table" aria-label="Tabela de Pedidos dos Clientes">
+              <thead>
+                <tr>
+                  <th scope="col" style="width: 120px;">Código</th>
+                  <th scope="col">Cliente</th>
+                  <th scope="col">Data/Hora</th>
+                  <th scope="col" style="text-align: center; width: 90px;">Itens</th>
+                  <th scope="col">Total</th>
+                  <th scope="col">Status</th>
+                  <th scope="col" style="width: 120px; text-align: center;">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="orders-table-body">
+                <!-- Linhas inseridas dinamicamente por orders.js -->
               </tbody>
             </table>
           </div>
@@ -455,7 +583,106 @@
         </div>
       </div>
 
-      <!-- 7. Lightbox para Visualização Ampliada de Imagens (Etapa 3D) -->
+      <!-- 7. Modal de Detalhes e Ações do Pedido (Etapa 3N) -->
+      <div id="modal-order-details" class="modal-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="order-modal-title">
+        <div class="modal-card modal-card--lg">
+          <div class="modal-header">
+            <div>
+              <div style="display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap;">
+                <h3 id="order-modal-title" class="modal-title" style="margin-bottom: 0;">
+                  <span>🛍️</span> Pedido <span id="order-modal-code" style="color: var(--primary);"></span>
+                </h3>
+                <span id="order-modal-status-badge" class="order-badge"></span>
+              </div>
+              <span id="order-modal-date" class="order-modal-subtitle"></span>
+            </div>
+            <button type="button" id="btn-close-order-modal" class="modal-close-btn" aria-label="Fechar detalhes do pedido">&times;</button>
+          </div>
+
+          <!-- Mensagens de Alerta dentro do Modal de Pedido -->
+          <div id="order-modal-alert" class="alert" style="display: none;" role="alert"></div>
+
+          <!-- Box de Reserva Ativa (quando status = received) -->
+          <div id="order-modal-reservation-box" class="order-reservation-banner" style="display: none;">
+            <div class="order-reservation-banner__icon">⏱️</div>
+            <div class="order-reservation-banner__text">
+              <strong>Estoque reservado temporariamente:</strong>
+              <span>Tempo restante: <strong id="order-modal-reservation-timer">—</strong></span>
+            </div>
+          </div>
+
+          <!-- Dados do Cliente -->
+          <div class="order-section-block">
+            <h4 class="order-section-heading"><span>👤</span> Dados do Cliente</h4>
+            <div class="order-customer-grid">
+              <div class="order-customer-field">
+                <span class="order-customer-field__label">Nome do Cliente</span>
+                <span id="order-modal-customer-name" class="order-customer-field__value">—</span>
+              </div>
+              <div class="order-customer-field">
+                <span class="order-customer-field__label">Telefone / WhatsApp</span>
+                <span id="order-modal-customer-phone" class="order-customer-field__value">—</span>
+              </div>
+              <div class="order-customer-field order-customer-field--full">
+                <span class="order-customer-field__label">Observações do Cliente</span>
+                <span id="order-modal-customer-notes" class="order-customer-field__value">—</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Itens do Pedido (Snapshot Congelado) -->
+          <div class="order-section-block">
+            <h4 class="order-section-heading"><span>📦</span> Produtos do Pedido (Snapshot Congelado)</h4>
+            <div class="table-responsive">
+              <table class="admin-table order-items-table" aria-label="Tabela de Itens do Pedido">
+                <thead>
+                  <tr>
+                    <th scope="col" style="width: 50px;">Img</th>
+                    <th scope="col">Produto</th>
+                    <th scope="col" style="text-align: right;">Preço Unit.</th>
+                    <th scope="col" style="text-align: center; width: 70px;">Qtd</th>
+                    <th scope="col" style="text-align: right;">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody id="order-modal-items-body">
+                  <!-- Inserido dinamicamente por orders.js -->
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="3" style="text-align: right; font-weight: 600; padding: 0.75rem 1rem;">
+                      Total:
+                    </td>
+                    <td id="order-modal-total-items" style="text-align: center; font-weight: 600;">
+                      0 itens
+                    </td>
+                    <td id="order-modal-total-amount" style="text-align: right; font-weight: 700; color: var(--primary); font-size: 1.05rem;">
+                      R$ 0,00
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- Histórico de Status (Auditoria) -->
+          <div class="order-section-block">
+            <h4 class="order-section-heading"><span>📜</span> Histórico de Mudanças de Status</h4>
+            <div id="order-modal-history-timeline" class="order-history-timeline">
+              <!-- Inserido dinamicamente por orders.js -->
+            </div>
+          </div>
+
+          <!-- Ações Permitidas para o Status Atual -->
+          <div class="order-section-block" style="margin-bottom: 0;">
+            <h4 class="order-section-heading"><span>⚡</span> Ações Operacionais</h4>
+            <div id="order-modal-actions" class="order-modal-actions-box">
+              <!-- Botões inseridos dinamicamente de acordo com o status -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Lightbox para Visualização Ampliada de Imagens (Etapa 3D) -->
       <div id="image-lightbox-modal" class="lightbox-overlay" style="display: none;" role="dialog" aria-modal="true" aria-label="Visualizador de Imagem Ampliada">
         <button type="button" id="lightbox-close-btn" class="lightbox-close-btn" aria-label="Fechar ampliação">&times;</button>
         <div class="lightbox-content">
@@ -471,12 +698,18 @@
   <script src="../js/supabase-client.js"></script>
   <script src="auth.js"></script>
   <script src="products.js"></script>
+  <script src="orders.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       if (window.MascotCarAuth && window.MascotCarAuth.protectAdminPage) {
         const isAuthorized = await window.MascotCarAuth.protectAdminPage();
-        if (isAuthorized && window.MascotCarProducts && window.MascotCarProducts.init) {
-          window.MascotCarProducts.init();
+        if (isAuthorized) {
+          if (window.MascotCarProducts && window.MascotCarProducts.init) {
+            window.MascotCarProducts.init();
+          }
+          if (window.MascotCarOrders && window.MascotCarOrders.init) {
+            window.MascotCarOrders.init();
+          }
         }
       }
     });
