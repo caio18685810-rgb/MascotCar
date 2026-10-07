@@ -1819,6 +1819,329 @@ async function checkAndHandleUrlTracking() {
   openOrderTrackingModal(orderCode, token);
 }
 
+// ==========================================================================
+// RASTREAMENTO DO PEDIDO COM POLLING ATIVO & EXPIRAÇÃO DINÂMICA (Etapa 3N.5.3)
+// ==========================================================================
+
+const TRACKING_POLL_INTERVAL_MS = 20000; // 20 segundos
+const TERMINAL_ORDER_STATUSES = ['completed', 'cancelled', 'expired'];
+const ACTIVE_TRACKING_STATUSES = ['received', 'confirmed', 'preparing', 'ready'];
+
+let trackingPollIntervalId = null;
+let isFetchingTrackingStatus = false;
+let activeTrackingOrderCode = null;
+let activeTrackingAccessToken = null;
+let activeTrackingCurrentStatus = null;
+let trackingReservationTimerInterval = null;
+let trackingVisibilityListenersAttached = false;
+
+/**
+ * Mapeamento visual canônico para crachás e textos de status de pedidos.
+ */
+const ORDER_TRACKING_STATUS_MAP = {
+  received: { label: 'Recebido (Aguardando Loja)', cls: 'received' },
+  confirmed: { label: 'Confirmado', cls: 'confirmed' },
+  preparing: { label: 'Em Preparação', cls: 'preparing' },
+  ready: { label: 'Pronto para Retirada', cls: 'ready' },
+  completed: { label: 'Concluído', cls: 'completed' },
+  cancelled: { label: 'Cancelado', cls: 'cancelled' },
+  expired: { label: 'Expirado', cls: 'expired' }
+};
+
+/**
+ * Atualiza o cronômetro visual de reserva dentro do modal de tracking quando o pedido está em 'received'.
+ * @param {string|null} expiresAtIso
+ */
+function updateTrackingReservationCountdown(expiresAtIso) {
+  if (trackingReservationTimerInterval) {
+    clearInterval(trackingReservationTimerInterval);
+    trackingReservationTimerInterval = null;
+  }
+
+  const container = document.getElementById('order-tracking-reservation-timer-box');
+  const timerLabel = document.getElementById('order-tracking-reservation-time-val');
+  if (!container || !timerLabel) return;
+
+  if (!expiresAtIso || activeTrackingCurrentStatus !== 'received') {
+    container.style.display = 'none';
+    return;
+  }
+
+  const expiresTime = new Date(expiresAtIso).getTime();
+  if (isNaN(expiresTime)) {
+    container.style.display = 'none';
+    return;
+  }
+
+  function tick() {
+    const now = Date.now();
+    const remainingMs = Math.max(0, expiresTime - now);
+
+    if (remainingMs <= 0) {
+      if (trackingReservationTimerInterval) {
+        clearInterval(trackingReservationTimerInterval);
+        trackingReservationTimerInterval = null;
+      }
+      timerLabel.textContent = '00:00 (Reserva expirada)';
+      container.style.background = '#fff5f5';
+      container.style.borderColor = '#feb2b2';
+      container.style.color = '#c53030';
+      // Dispara imediatamente uma consulta de atualização para sincronizar status com Supabase
+      if (!isFetchingTrackingStatus && activeTrackingOrderCode && activeTrackingAccessToken) {
+        pollOrderTrackingStatus(true);
+      }
+      return;
+    }
+
+    const minutes = Math.floor(remainingMs / 60000);
+    const seconds = Math.floor((remainingMs % 60000) / 1000);
+    timerLabel.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  container.style.display = 'flex';
+  tick();
+  trackingReservationTimerInterval = setInterval(tick, 1000);
+}
+
+/**
+ * Renderiza ou atualiza o conteúdo do corpo do modal de tracking de forma estável.
+ * @param {Object} order
+ */
+function renderTrackingModalContent(order) {
+  const subtitleEl = document.getElementById('order-tracking-subtitle');
+  const bodyEl = document.getElementById('order-tracking-body');
+  const trackWaBtn = document.getElementById('order-tracking-btn-whatsapp');
+
+  if (!bodyEl) return;
+
+  const stInfo = ORDER_TRACKING_STATUS_MAP[order.status] || { label: order.status, cls: 'received' };
+  activeTrackingCurrentStatus = order.status;
+
+  if (subtitleEl) {
+    subtitleEl.textContent = `Status: ${stInfo.label}`;
+  }
+
+  // Prepara itens
+  const itemsHtml = (order.items || []).map(it => `
+    <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--color-border); font-size: 0.875rem;">
+      <div>
+        <strong>${escapeHTML(it.product_name)}</strong>
+        <div style="font-size: 0.775rem; color: var(--color-text-muted);">${it.quantity} un. × ${formatCurrency(it.unit_price)}</div>
+      </div>
+      <div>${formatCurrency(it.subtotal)}</div>
+    </div>
+  `).join('');
+
+  // Prepara histórico / linha do tempo
+  const historyHtml = (order.history || []).map(h => `
+    <div class="order-timeline-node">
+      <div style="font-weight: 600;">${ORDER_TRACKING_STATUS_MAP[h.status] ? ORDER_TRACKING_STATUS_MAP[h.status].label : h.status}</div>
+      <div class="order-timeline-time">${new Date(h.created_at).toLocaleString('pt-BR')} ${h.comment ? '— ' + escapeHTML(h.comment) : ''}</div>
+    </div>
+  `).join('');
+
+  // Bloco de aviso de reserva quando status for 'received'
+  const isReceived = order.status === 'received';
+  const reservationBoxHtml = `
+    <div id="order-tracking-reservation-timer-box" style="display: ${isReceived ? 'flex' : 'none'}; justify-content: space-between; align-items: center; background: #fffaf0; border: 1px solid #feebc8; border-radius: var(--radius-md); padding: 0.625rem 0.875rem; margin-bottom: 0.75rem; font-size: 0.85rem; color: #c05621;">
+      <span>⏱️ Tempo restante de reserva:</span>
+      <strong id="order-tracking-reservation-time-val">—</strong>
+    </div>
+  `;
+
+  bodyEl.innerHTML = `
+    ${reservationBoxHtml}
+
+    <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-bg-alt); padding: 0.75rem 1rem; border-radius: var(--radius-md);">
+      <span style="font-size: 0.85rem; font-weight: 600;">Status do Pedido:</span>
+      <span class="order-status-badge order-status-badge--${stInfo.cls}" id="order-tracking-status-badge">${stInfo.label}</span>
+    </div>
+
+    <div>
+      <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--color-text-muted);">Itens do Pedido</h4>
+      ${itemsHtml}
+      <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; font-weight: 800; font-size: 1rem;">
+        <span>Total:</span>
+        <span>${formatCurrency(order.total_amount)}</span>
+      </div>
+    </div>
+
+    <div>
+      <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--color-text-muted);">Linha do Tempo</h4>
+      <div class="order-tracking-timeline" id="order-tracking-timeline">
+        ${historyHtml}
+      </div>
+    </div>
+  `;
+
+  // Configura botão do WhatsApp com link contextual
+  if (trackWaBtn) {
+    const totalUnits = (order.items || []).reduce((acc, it) => acc + (it.quantity || 1), 0);
+    trackWaBtn.href = buildOrderWhatsAppLink({
+      orderCode: order.order_code,
+      totalAmount: order.total_amount,
+      totalItems: totalUnits || 1,
+      statusLabel: stInfo.label
+    });
+    trackWaBtn.style.display = 'inline-flex';
+  }
+
+  // Ativa contador regressivo se status for 'received'
+  if (isReceived && order.reservation_expires_at) {
+    updateTrackingReservationCountdown(order.reservation_expires_at);
+  } else if (trackingReservationTimerInterval) {
+    clearInterval(trackingReservationTimerInterval);
+    trackingReservationTimerInterval = null;
+  }
+}
+
+/**
+ * Consulta o status atualizado do pedido no Supabase durante o ciclo de polling.
+ * @param {boolean} [isForced=false]
+ */
+async function pollOrderTrackingStatus(isForced = false) {
+  if (isFetchingTrackingStatus) return;
+  if (!activeTrackingOrderCode || !activeTrackingAccessToken) return;
+
+  // Condições de pausa: sem internet ou aba oculta
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden' && !isForced) return;
+
+  const modal = document.getElementById('order-tracking-backdrop');
+  if (!modal || modal.style.display !== 'flex') {
+    stopOrderTrackingPolling();
+    return;
+  }
+
+  isFetchingTrackingStatus = true;
+
+  try {
+    const { data, error } = await supabaseClient.rpc('get_order_tracking', {
+      p_order_code: activeTrackingOrderCode,
+      p_access_token: activeTrackingAccessToken
+    });
+
+    if (error || !data || !data.success || !data.order) {
+      return;
+    }
+
+    const freshOrder = data.order;
+    const freshStatus = freshOrder.status;
+
+    // Se houve alteração de status ou valores, atualiza a UI suavemente
+    const statusChanged = activeTrackingCurrentStatus !== freshStatus;
+
+    if (statusChanged) {
+      renderTrackingModalContent(freshOrder);
+    } else {
+      // Mesmo com mesmo status, atualiza timeline se novos eventos foram registrados
+      const timelineEl = document.getElementById('order-tracking-timeline');
+      if (timelineEl && freshOrder.history) {
+        timelineEl.innerHTML = freshOrder.history.map(h => `
+          <div class="order-timeline-node">
+            <div style="font-weight: 600;">${ORDER_TRACKING_STATUS_MAP[h.status] ? ORDER_TRACKING_STATUS_MAP[h.status].label : h.status}</div>
+            <div class="order-timeline-time">${new Date(h.created_at).toLocaleString('pt-BR')} ${h.comment ? '— ' + escapeHTML(h.comment) : ''}</div>
+          </div>
+        `).join('');
+      }
+    }
+
+    // Persiste no cache local de pedidos para manter "Meus Pedidos" sempre alinhado
+    updateOrderInLocalHistory(freshOrder.order_code, {
+      status: freshStatus,
+      totalAmount: freshOrder.total_amount,
+      totalItems: freshOrder.total_items,
+      reservationExpiresAt: freshOrder.reservation_expires_at
+    });
+
+    // Se o pedido atingiu status terminal, interrompe o polling imediatamente
+    if (TERMINAL_ORDER_STATUSES.includes(freshStatus)) {
+      stopOrderTrackingPolling();
+    }
+
+  } catch (err) {
+    // Erros pontuais de conexão não quebram o ciclo
+  } finally {
+    isFetchingTrackingStatus = false;
+  }
+}
+
+/**
+ * Inicia o polling seguro e periódico para pedidos com status ativos.
+ * @param {string} orderCode
+ * @param {string} token
+ * @param {string} initialStatus
+ */
+function startOrderTrackingPolling(orderCode, token, initialStatus) {
+  stopOrderTrackingPolling();
+
+  activeTrackingOrderCode = orderCode;
+  activeTrackingAccessToken = token;
+  activeTrackingCurrentStatus = initialStatus;
+
+  // Não inicia polling em status terminais
+  if (TERMINAL_ORDER_STATUSES.includes(initialStatus)) {
+    return;
+  }
+
+  // Registra os listeners de visibilidade e rede uma única vez
+  initTrackingLifecycleListeners();
+
+  // Inicia o intervalo de polling
+  trackingPollIntervalId = setInterval(() => {
+    pollOrderTrackingStatus(false);
+  }, TRACKING_POLL_INTERVAL_MS);
+}
+
+/**
+ * Para imediatamente qualquer ciclo de polling ativo e limpa timers.
+ */
+function stopOrderTrackingPolling() {
+  if (trackingPollIntervalId) {
+    clearInterval(trackingPollIntervalId);
+    trackingPollIntervalId = null;
+  }
+
+  if (trackingReservationTimerInterval) {
+    clearInterval(trackingReservationTimerInterval);
+    trackingReservationTimerInterval = null;
+  }
+
+  isFetchingTrackingStatus = false;
+  activeTrackingOrderCode = null;
+  activeTrackingAccessToken = null;
+  activeTrackingCurrentStatus = null;
+}
+
+/**
+ * Registra listeners globais para Visibility API e Online/Offline uma única vez.
+ */
+function initTrackingLifecycleListeners() {
+  if (trackingVisibilityListenersAttached) return;
+  trackingVisibilityListenersAttached = true;
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      const modal = document.getElementById('order-tracking-backdrop');
+      if (modal && modal.style.display === 'flex' && activeTrackingOrderCode && activeTrackingAccessToken) {
+        if (!TERMINAL_ORDER_STATUSES.includes(activeTrackingCurrentStatus)) {
+          // Faz uma checagem imediata ao voltar à aba ativa
+          pollOrderTrackingStatus(true);
+        }
+      }
+    }
+  });
+
+  window.addEventListener('online', () => {
+    const modal = document.getElementById('order-tracking-backdrop');
+    if (modal && modal.style.display === 'flex' && activeTrackingOrderCode && activeTrackingAccessToken) {
+      if (!TERMINAL_ORDER_STATUSES.includes(activeTrackingCurrentStatus)) {
+        pollOrderTrackingStatus(true);
+      }
+    }
+  });
+}
+
 /**
  * Abre o modal de rastreamento e consulta o pedido via get_order_tracking.
  */
@@ -1829,6 +2152,9 @@ async function openOrderTrackingModal(orderCode, token) {
   const bodyEl = document.getElementById('order-tracking-body');
 
   if (!modal || !bodyEl) return;
+
+  // Garante limpeza de ciclo anterior
+  stopOrderTrackingPolling();
 
   if (titleEl) titleEl.textContent = `Pedido ${escapeHTML(orderCode)}`;
   if (subtitleEl) subtitleEl.textContent = 'Consultando status em tempo real...';
@@ -1884,80 +2210,22 @@ async function openOrderTrackingModal(orderCode, token) {
     }
 
     const order = data.order;
-    const statusMap = {
-      received: { label: 'Recebido (Aguardando Loja)', cls: 'received' },
-      confirmed: { label: 'Confirmado', cls: 'confirmed' },
-      preparing: { label: 'Em Preparação', cls: 'preparing' },
-      ready: { label: 'Pronto para Retirada', cls: 'ready' },
-      completed: { label: 'Concluído', cls: 'completed' },
-      cancelled: { label: 'Cancelado', cls: 'cancelled' },
-      expired: { label: 'Expirado', cls: 'expired' }
-    };
 
-    const stInfo = statusMap[order.status] || { label: order.status, cls: 'received' };
+    // Renderiza todo o conteúdo estável do modal
+    renderTrackingModalContent(order);
 
-    if (subtitleEl) subtitleEl.textContent = `Status: ${stInfo.label}`;
-
-    let itemsHtml = (order.items || []).map(it => `
-      <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--color-border); font-size: 0.875rem;">
-        <div>
-          <strong>${escapeHTML(it.product_name)}</strong>
-          <div style="font-size: 0.775rem; color: var(--color-text-muted);">${it.quantity} un. × ${formatCurrency(it.unit_price)}</div>
-        </div>
-        <div>${formatCurrency(it.subtotal)}</div>
-      </div>
-    `).join('');
-
-    let historyHtml = (order.history || []).map(h => `
-      <div class="order-timeline-node">
-        <div style="font-weight: 600;">${statusMap[h.status] ? statusMap[h.status].label : h.status}</div>
-        <div class="order-timeline-time">${new Date(h.created_at).toLocaleString('pt-BR')} ${h.comment ? '— ' + escapeHTML(h.comment) : ''}</div>
-      </div>
-    `).join('');
-
-    bodyEl.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; background: var(--color-bg-alt); padding: 0.75rem 1rem; border-radius: var(--radius-md);">
-        <span style="font-size: 0.85rem; font-weight: 600;">Status do Pedido:</span>
-        <span class="order-status-badge order-status-badge--${stInfo.cls}">${stInfo.label}</span>
-      </div>
-
-      <div>
-        <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--color-text-muted);">Itens do Pedido</h4>
-        ${itemsHtml}
-        <div style="display: flex; justify-content: space-between; padding-top: 0.75rem; font-weight: 800; font-size: 1rem;">
-          <span>Total:</span>
-          <span>${formatCurrency(order.total_amount)}</span>
-        </div>
-      </div>
-
-      <div>
-        <h4 style="font-size: 0.85rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.5rem; color: var(--color-text-muted);">Linha do Tempo</h4>
-        <div class="order-tracking-timeline">
-          ${historyHtml}
-        </div>
-      </div>
-    `;
-
-    // Configura o botão do WhatsApp com os dados do pedido (sem token)
-    const trackWaBtn = document.getElementById('order-tracking-btn-whatsapp');
-    if (trackWaBtn) {
-      const totalUnits = (order.items || []).reduce((acc, it) => acc + (it.quantity || 1), 0);
-      trackWaBtn.href = buildOrderWhatsAppLink({
-        orderCode: order.order_code,
-        totalAmount: order.total_amount,
-        totalItems: totalUnits || 1,
-        statusLabel: stInfo.label
-      });
-      trackWaBtn.style.display = 'inline-flex';
-    }
-
-    // Persiste status atualizado de volta no histórico local
+    // Persiste status inicial atualizado de volta no histórico local
     updateOrderInLocalHistory(order.order_code, {
       status: order.status,
       totalAmount: order.total_amount,
       totalItems: order.total_items,
       reservationExpiresAt: order.reservation_expires_at
     });
+
+    // Inicia o polling automático se o pedido for elegível (status ativo)
+    if (ACTIVE_TRACKING_STATUSES.includes(order.status)) {
+      startOrderTrackingPolling(order.order_code, token, order.status);
+    }
 
   } catch (e) {
     const trackWaBtn = document.getElementById('order-tracking-btn-whatsapp');
@@ -1967,9 +2235,11 @@ async function openOrderTrackingModal(orderCode, token) {
 }
 
 /**
- * Fecha o Modal de Rastreamento.
+ * Fecha o Modal de Rastreamento e interrompe o polling imediatamente.
  */
 function closeOrderTrackingModal() {
+  stopOrderTrackingPolling();
+
   const modal = document.getElementById('order-tracking-backdrop');
   if (!modal) return;
 
