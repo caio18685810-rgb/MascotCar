@@ -282,6 +282,7 @@
     resetBtn: () => document.getElementById('orders-reset-filters-btn'),
     refreshBtn: () => document.getElementById('orders-refresh-btn'),
     retryBtn: () => document.getElementById('orders-retry-btn'),
+    navOrdersBadge: () => document.getElementById('nav-orders-pending-badge'),
 
     // Modal de detalhes
     modal: () => document.getElementById('modal-order-details'),
@@ -525,6 +526,9 @@
     if (countExpiredEl) countExpiredEl.textContent = counts.expired;
     if (countCancelledEl) countCancelledEl.textContent = counts.cancelled;
 
+    // Atualiza o badge numérico de pedidos pendentes na navegação principal (Etapa 3N.4.6)
+    updatePendingOrdersBadge();
+
     // Atualiza estado ativo/selecionado das abas
     const tabs = document.querySelectorAll('.orders-category-tab');
     tabs.forEach((tab) => {
@@ -538,6 +542,51 @@
     if (resetBtn) {
       const hasActiveFilter = currentFilters.search !== '' || currentFilters.status !== 'all' || currentFilters.category !== 'active';
       resetBtn.style.display = hasActiveFilter ? 'inline-flex' : 'none';
+    }
+  }
+
+  /**
+   * Atualiza o badge numérico no botão de navegação "Pedidos dos Clientes" (#tab-nav-orders).
+   * Conta pedidos com status = 'received' E reserva ainda válida (reservation_expires_at > agora).
+   * Se houver algum pedido com reserva urgente (< 10 minutos), adiciona destaque urgente.
+   */
+  function updatePendingOrdersBadge() {
+    const badgeEl = UI.navOrdersBadge();
+    if (!badgeEl) return;
+
+    const now = Date.now();
+    let pendingCount = 0;
+    let hasUrgent = false;
+
+    loadedOrders.forEach((order) => {
+      if (order.status === 'received' && order.reservation_expires_at) {
+        const expiresTime = new Date(order.reservation_expires_at).getTime();
+        const diffMs = expiresTime - now;
+        if (diffMs > 0) {
+          pendingCount++;
+          if (diffMs < 10 * 60 * 1000) {
+            hasUrgent = true;
+          }
+        }
+      }
+    });
+
+    if (pendingCount > 0) {
+      badgeEl.textContent = pendingCount;
+      badgeEl.style.display = 'inline-flex';
+      badgeEl.setAttribute('aria-label', `${pendingCount} ${pendingCount === 1 ? 'pedido aguardando confirmação' : 'pedidos aguardando confirmação'}`);
+      if (hasUrgent) {
+        badgeEl.classList.add('nav-tab-badge--urgent');
+        badgeEl.title = `${pendingCount} pedido(s) aguardando confirmação (reserva próxima de expirar)`;
+      } else {
+        badgeEl.classList.remove('nav-tab-badge--urgent');
+        badgeEl.title = `${pendingCount} pedido(s) aguardando confirmação`;
+      }
+    } else {
+      badgeEl.textContent = '0';
+      badgeEl.style.display = 'none';
+      badgeEl.classList.remove('nav-tab-badge--urgent');
+      badgeEl.removeAttribute('title');
     }
   }
 
@@ -703,6 +752,9 @@
           }
         }
       }
+
+      // 3. Mantém o badge de pedidos pendentes sincronizado com o passar do tempo
+      updatePendingOrdersBadge();
     }, 1000);
   }
 
@@ -1461,9 +1513,17 @@
   /**
    * Ponto de entrada para inicialização da gestão de pedidos.
    */
-  function init() {
+  async function init() {
     initNavigationTabs();
     initEvents();
+
+    // Carrega dados iniciais em segundo plano para preencher o badge de pendências
+    // mesmo que o painel inicie visualmente na aba de Catálogo de Produtos.
+    const result = await fetchOrders();
+    if (result.success && Array.isArray(result.data)) {
+      loadedOrders = result.data;
+      updatePendingOrdersBadge();
+    }
   }
 
   // Expõe API pública do módulo de pedidos
