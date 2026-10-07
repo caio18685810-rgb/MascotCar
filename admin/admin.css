@@ -1890,3 +1890,271 @@ body {
   color: #cbd5e1;
   border-color: rgba(148, 163, 184, 0.3);
 }
+
+/* ==========================================================================
+   Etapa 3N.5.2 — Picking Slip / Impressão do Pedido no Admin (@media print)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 12mm 15mm 12mm;
+  }
+
+  /* Reset global de cores para contraste ideal em impressão preto e branco / tons de cinza */
+  *,
+  *::before,
+  *::after {
+    color: #111827 !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Oculta toda a interface administrativa, navegação, filtros, abas e modais secundários */
+  body {
+    background: #fff !important;
+    color: #111827 !important;
+    font-size: 11pt !important;
+    line-height: 1.4 !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .admin-navbar,
+  .admin-header,
+  .admin-tabs-nav,
+  #products-section,
+  #orders-section,
+  #modal-create-product,
+  #modal-edit-product,
+  #modal-confirm-delete,
+  #image-lightbox-modal,
+  .modal-close-btn,
+  #btn-close-order-modal,
+  #btn-close-order-modal-secondary,
+  #order-modal-alert,
+  #order-modal-reservation-box,
+  #order-modal-history-timeline,
+  .order-section-block:has(#order-modal-history-timeline),
+  .order-section-block:has(#order-modal-actions),
+  #order-modal-actions,
+  .btn,
+  button {
+    display: none !important;
+  }
+
+  /* Exibe exclusivamente o modal de detalhes do pedido */
+  #modal-order-details {
+    display: block !important;
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    inset: auto !important;
+    overflow: visible !important;
+    z-index: auto !important;
+  }
+
+  #modal-order-details .modal-card,
+  #modal-order-details .modal-card--lg {
+    display: block !important;
+    position: static !important;
+    background: #fff !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Cabeçalho da Folha de Separação / Identidade MascotCar */
+  #modal-order-details .modal-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    border-bottom: 2px solid #111827 !important;
+    padding: 0 0 10pt 0 !important;
+    margin-bottom: 12pt !important;
+  }
+
+  #modal-order-details .modal-header::before {
+    content: "MascotCar — Comprovante de Separação";
+    display: block;
+    font-size: 16pt;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #111827 !important;
+    margin-bottom: 4pt;
+  }
+
+  #order-modal-title {
+    font-size: 13pt !important;
+    font-weight: 700 !important;
+    color: #111827 !important;
+  }
+
+  #order-modal-code {
+    font-size: 14pt !important;
+    font-weight: 800 !important;
+    color: #111827 !important;
+    text-decoration: underline;
+  }
+
+  #order-modal-status-badge {
+    border: 1px solid #374151 !important;
+    background: #f3f4f6 !important;
+    color: #111827 !important;
+    font-size: 9pt !important;
+    font-weight: 700 !important;
+    padding: 2pt 8pt !important;
+    border-radius: 4px !important;
+  }
+
+  .order-badge__dot {
+    display: none !important;
+  }
+
+  #order-modal-date {
+    display: block !important;
+    font-size: 9.5pt !important;
+    color: #4b5563 !important;
+    margin-top: 3pt !important;
+  }
+
+  /* Blocos de seções */
+  .order-section-block {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin-bottom: 14pt !important;
+    page-break-inside: avoid;
+  }
+
+  .order-section-heading {
+    font-size: 11pt !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    color: #111827 !important;
+    border-bottom: 1px solid #d1d5db !important;
+    padding-bottom: 4pt !important;
+    margin-bottom: 8pt !important;
+  }
+
+  .order-section-heading span {
+    display: none !important;
+  }
+
+  /* Grid de Dados do Cliente */
+  .order-customer-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8pt !important;
+    background: #f9fafb !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 4px !important;
+    padding: 8pt 10pt !important;
+  }
+
+  .order-customer-field--full {
+    grid-column: 1 / -1 !important;
+  }
+
+  .order-customer-field__label {
+    font-size: 8pt !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    color: #6b7280 !important;
+    margin-bottom: 2pt !important;
+  }
+
+  .order-customer-field__value {
+    font-size: 10pt !important;
+    font-weight: 600 !important;
+    color: #111827 !important;
+  }
+
+  /* Tabela de Itens e Valores */
+  .order-items-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 4pt !important;
+  }
+
+  .order-items-table thead th {
+    background: #f3f4f6 !important;
+    color: #111827 !important;
+    font-size: 9pt !important;
+    font-weight: 700 !important;
+    border-top: 1px solid #9ca3af !important;
+    border-bottom: 1px solid #9ca3af !important;
+    padding: 6pt 8pt !important;
+  }
+
+  .order-items-table thead th:first-child,
+  .order-items-table tbody td:first-child {
+    display: none !important; /* Oculta coluna de miniatura de imagem na impressão */
+  }
+
+  .order-items-table tbody tr {
+    page-break-inside: avoid;
+    border-bottom: 1px solid #e5e7eb !important;
+  }
+
+  .order-items-table tbody td {
+    padding: 6pt 8pt !important;
+    font-size: 9.5pt !important;
+    color: #111827 !important;
+  }
+
+  .order-items-table .product-name {
+    font-weight: 600 !important;
+    color: #111827 !important;
+  }
+
+  .items-count-pill {
+    background: transparent !important;
+    border: none !important;
+    font-weight: 700 !important;
+    font-size: 10pt !important;
+    color: #111827 !important;
+  }
+
+  .order-items-table tfoot tr td {
+    padding: 8pt 8pt !important;
+    border-top: 2px solid #111827 !important;
+    border-bottom: none !important;
+    font-size: 10.5pt !important;
+    color: #111827 !important;
+  }
+
+  #order-modal-total-amount {
+    font-size: 12pt !important;
+    font-weight: 800 !important;
+    color: #111827 !important;
+  }
+
+  /* Bloco de Conferência e Assinatura para Separação Física */
+  #modal-order-details .modal-card::after {
+    content: "CONFERÊNCIA E EXPEDIÇÃO\A\A"
+             "Separado por: _________________________________    Data / Hora: ____/____/________  ____:____\A\A"
+             "Conferido por: ________________________________    Assinatura: _____________________________";
+    white-space: pre-wrap;
+    display: block;
+    margin-top: 24pt;
+    padding-top: 12pt;
+    border-top: 1px dashed #9ca3af;
+    font-size: 8.5pt;
+    font-family: monospace, inherit;
+    line-height: 1.6;
+    color: #374151 !important;
+    page-break-inside: avoid;
+  }
+}

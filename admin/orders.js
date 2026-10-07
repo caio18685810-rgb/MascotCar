@@ -945,7 +945,12 @@
     if (!container) return;
 
     const isTerminal = ['completed', 'cancelled', 'expired'].includes(order.status);
+    const canPrint = ['confirmed', 'preparing', 'ready', 'completed'].includes(order.status);
     let buttonsHtml = '';
+
+    const printButtonHtml = canPrint
+      ? `<button type="button" class="btn btn-secondary btn-sm" id="btn-action-print" style="width: auto;">🖨️ Imprimir Pedido</button>`
+      : '';
 
     if (order.status === 'received') {
       const isExpired = new Date(order.reservation_expires_at).getTime() <= Date.now();
@@ -987,9 +992,12 @@
 
       buttonsHtml = `
         <div style="display: flex; gap: 0.75rem; width: 100%; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-          <button type="button" class="btn btn-outline-danger btn-sm" id="btn-action-cancel" style="width: auto;">
-            ✕ Cancelar Pedido
-          </button>
+          <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <button type="button" class="btn btn-outline-danger btn-sm" id="btn-action-cancel" style="width: auto;">
+              ✕ Cancelar Pedido
+            </button>
+            ${printButtonHtml}
+          </div>
           <div style="display: flex; gap: 0.5rem; align-items: center;">
             <button type="button" class="btn btn-secondary btn-sm" id="btn-action-next-status" data-next="${nextStatus}" style="width: auto;">
               ${nextActionLabel}
@@ -999,10 +1007,13 @@
       `;
     } else if (isTerminal) {
       buttonsHtml = `
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <span style="font-size: 0.85rem; color: var(--text-muted);">
-            Status terminal (${getStatusMeta(order.status).label}). Nenhuma ação de alteração permitida.
-          </span>
+        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 0.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">
+              Status terminal (${getStatusMeta(order.status).label}). Nenhuma ação de alteração permitida.
+            </span>
+            ${printButtonHtml}
+          </div>
           <button type="button" class="btn btn-secondary btn-sm" id="btn-close-order-modal-secondary" style="width: auto;">
             Fechar
           </button>
@@ -1013,6 +1024,13 @@
     container.innerHTML = buttonsHtml;
 
     // Conecta listeners dos botões dinâmicos
+    const printBtn = container.querySelector('#btn-action-print');
+    if (printBtn) {
+      printBtn.addEventListener('click', () => {
+        window.print();
+      });
+    }
+
     const confirmBtn = container.querySelector('#btn-action-confirm');
     if (confirmBtn) {
       confirmBtn.addEventListener('click', () => executeConfirmOrder(order));
