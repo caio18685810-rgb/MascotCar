@@ -1453,6 +1453,31 @@ function saveOrderToLocalHistory(orderData) {
 }
 
 /**
+ * Atualiza campos específicos de um pedido existente no histórico local sem sobrescrever os demais dados.
+ * @param {string} orderCode
+ * @param {Object} partialData
+ * @returns {boolean} Retorna true se encontrou e atualizou, false caso contrário.
+ */
+function updateOrderInLocalHistory(orderCode, partialData) {
+  if (!orderCode || !partialData) return false;
+  try {
+    const raw = localStorage.getItem(ORDERS_STORAGE_KEY);
+    if (!raw) return false;
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return false;
+
+    const index = list.findIndex(o => o.orderCode === orderCode);
+    if (index === -1) return false;
+
+    list[index] = { ...list[index], ...partialData };
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * Busca o access_token salvo localmente no navegador por orderCode.
  */
 function getLocalAccessToken(orderCode) {
@@ -1926,6 +1951,14 @@ async function openOrderTrackingModal(orderCode, token) {
       trackWaBtn.style.display = 'inline-flex';
     }
 
+    // Persiste status atualizado de volta no histórico local
+    updateOrderInLocalHistory(order.order_code, {
+      status: order.status,
+      totalAmount: order.total_amount,
+      totalItems: order.total_items,
+      reservationExpiresAt: order.reservation_expires_at
+    });
+
   } catch (e) {
     const trackWaBtn = document.getElementById('order-tracking-btn-whatsapp');
     if (trackWaBtn) trackWaBtn.style.display = 'none';
@@ -1968,6 +2001,97 @@ function getLocalOrdersList() {
   }
 }
 
+// Status ativos/não-terminais que devem ser sincronizados com o Supabase (Etapa 3N.5.1)
+const SYNCABLE_ORDER_STATUSES = ['received', 'confirmed', 'preparing', 'ready'];
+
+let isSyncingCustomerOrders = false;
+
+/**
+ * Sincroniza em segundo plano os pedidos locais ativos chamando public.get_order_tracking.
+ * Não bloqueia a interface e atualiza os cards/localStorage de forma silenciosa.
+ */
+async function syncCustomerOrdersStatuses() {
+  if (isSyncingCustomerOrders) return;
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+  if (!supabaseClient) return;
+
+  const orders = getLocalOrdersList();
+  if (!orders || orders.length === 0) return;
+
+  // Filtra apenas pedidos cujo status local seja 'received', 'confirmed', 'preparing' ou 'ready'
+  // e que possuam token de acesso salvo localmente
+  const eligibleOrders = orders.filter(o =>
+    o &&
+    o.orderCode &&
+    o.accessToken &&
+    SYNCABLE_ORDER_STATUSES.includes(o.status || 'received')
+  );
+
+  if (eligibleOrders.length === 0) return;
+
+  isSyncingCustomerOrders = true;
+
+  try {
+    let hasAnyChanges = false;
+    const MAX_CONCURRENT_RPCS = 5;
+    let nextIndex = 0;
+
+    // Worker assíncrono que consome a fila compartilhada garantindo no máximo 5 RPCs simultâneas
+    async function worker() {
+      while (nextIndex < eligibleOrders.length) {
+        const ord = eligibleOrders[nextIndex++];
+        try {
+          const { data, error } = await supabaseClient.rpc('get_order_tracking', {
+            p_order_code: ord.orderCode,
+            p_access_token: ord.accessToken
+          });
+
+          if (error || !data || !data.success || !data.order) continue;
+
+          const freshOrder = data.order;
+          const freshStatus = freshOrder.status;
+          const freshTotalAmount = freshOrder.total_amount;
+          const freshTotalItems = freshOrder.total_items;
+          const freshReservationExpiresAt = freshOrder.reservation_expires_at;
+
+          // Verifica se houve mudança em relação ao estado em cache
+          const changed = ord.status !== freshStatus ||
+            ord.totalAmount !== freshTotalAmount ||
+            ord.totalItems !== freshTotalItems ||
+            ord.reservationExpiresAt !== freshReservationExpiresAt;
+
+          if (changed) {
+            updateOrderInLocalHistory(ord.orderCode, {
+              status: freshStatus,
+              totalAmount: freshTotalAmount,
+              totalItems: freshTotalItems,
+              reservationExpiresAt: freshReservationExpiresAt
+            });
+            hasAnyChanges = true;
+          }
+        } catch (err) {
+          // Falhas isoladas de rede ou token não interrompem a sincronização dos demais pedidos
+        }
+      }
+    }
+
+    // Instancia pool com no máximo 5 workers concorrentes (ou a quantidade de pedidos elegíveis, se menor)
+    const workerCount = Math.min(MAX_CONCURRENT_RPCS, eligibleOrders.length);
+    const workers = Array.from({ length: workerCount }, () => worker());
+    await Promise.allSettled(workers);
+
+    // Se houve alterações e o modal de Meus Pedidos ainda estiver aberto, atualiza a lista
+    if (hasAnyChanges) {
+      const backdrop = document.getElementById('customer-orders-backdrop');
+      if (backdrop && backdrop.classList.contains('is-open')) {
+        renderCustomerOrdersList();
+      }
+    }
+  } finally {
+    isSyncingCustomerOrders = false;
+  }
+}
+
 /**
  * Abre o Modal de Meus Pedidos e renderiza os registros locais.
  */
@@ -1975,6 +2099,7 @@ function openCustomerOrdersModal() {
   const backdrop = document.getElementById('customer-orders-backdrop');
   if (!backdrop) return;
 
+  // 1. Renderiza imediatamente a partir do cache local
   renderCustomerOrdersList();
 
   backdrop.style.display = 'flex';
@@ -1982,6 +2107,9 @@ function openCustomerOrdersModal() {
     backdrop.classList.add('is-open');
   });
   document.body.style.overflow = 'hidden';
+
+  // 2. Dispara sincronização em segundo plano sem bloquear a abertura
+  syncCustomerOrdersStatuses();
 }
 
 /**
