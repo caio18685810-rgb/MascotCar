@@ -494,9 +494,11 @@ function resetPublicCatalogFilters() {
   const catButtons = document.querySelectorAll('.category-card');
   catButtons.forEach((b) => {
     b.classList.remove('category-card--active');
+    b.setAttribute('aria-pressed', 'false');
     const filterVal = b.getAttribute('data-filter');
     if (filterVal === 'todos' || filterVal === 'all') {
       b.classList.add('category-card--active');
+      b.setAttribute('aria-pressed', 'true');
     }
   });
 
@@ -515,15 +517,18 @@ function setCategoryFilter(categorySlugOrId) {
     catSelect.value = publicCatalogFilters.category;
   }
 
-  // Sincroniza a classe ativa nos botões de categoria do topo
+  // Sincroniza a classe ativa e aria-pressed nos botões de categoria do topo
   const catButtons = document.querySelectorAll('.category-card');
   catButtons.forEach((b) => {
     b.classList.remove('category-card--active');
+    b.setAttribute('aria-pressed', 'false');
     const filterVal = b.getAttribute('data-filter');
     if (publicCatalogFilters.category === 'all' && (filterVal === 'todos' || filterVal === 'all')) {
       b.classList.add('category-card--active');
+      b.setAttribute('aria-pressed', 'true');
     } else if (filterVal === publicCatalogFilters.category) {
       b.classList.add('category-card--active');
+      b.setAttribute('aria-pressed', 'true');
     }
   });
 
@@ -586,7 +591,7 @@ function populateTopCategoriesBar() {
   // Se não existirem categorias cadastradas ou consulta falhou
   if (!publicCatalogCategories || publicCatalogCategories.length === 0) {
     categoriesGrid.innerHTML = `
-      <button class="category-card category-card--active" data-filter="todos" type="button">
+      <button class="category-card category-card--active" data-filter="todos" type="button" aria-pressed="true">
         <span class="category-card__icon">🚗</span>
         <span class="category-card__label">Todos</span>
         <span class="category-card__count">${totalActive}</span>
@@ -595,8 +600,10 @@ function populateTopCategoriesBar() {
     return;
   }
 
+  const isAllActive = publicCatalogFilters.category === 'all' || !publicCatalogFilters.category;
+
   let html = `
-    <button class="category-card ${publicCatalogFilters.category === 'all' ? 'category-card--active' : ''}" data-filter="todos" type="button">
+    <button class="category-card ${isAllActive ? 'category-card--active' : ''}" data-filter="todos" type="button" aria-pressed="${isAllActive ? 'true' : 'false'}">
       <span class="category-card__icon">🚗</span>
       <span class="category-card__label">Todos</span>
       <span class="category-card__count">${totalActive}</span>
@@ -609,7 +616,7 @@ function populateTopCategoriesBar() {
     const icon = getCategoryEmoji(cat.name);
 
     html += `
-      <button class="category-card ${isAct ? 'category-card--active' : ''}" data-filter="${escapeHTML(cat.id)}" type="button">
+      <button class="category-card ${isAct ? 'category-card--active' : ''}" data-filter="${escapeHTML(cat.id)}" type="button" aria-pressed="${isAct ? 'true' : 'false'}">
         <span class="category-card__icon">${icon}</span>
         <span class="category-card__label">${escapeHTML(cat.name)}</span>
         <span class="category-card__count">${count}</span>
