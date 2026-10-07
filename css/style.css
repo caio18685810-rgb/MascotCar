@@ -3556,3 +3556,126 @@ body.no-announcement {
   color: #e53e3e;
   background: rgba(229, 62, 62, 0.08);
 }
+
+/* =====================================================
+   MODAIS INSTITUCIONAIS & LINKS DO RODAPÉ (Etapa 3O.1)
+   ===================================================== */
+.footer__link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: color var(--transition);
+}
+
+.footer__link-btn:hover {
+  color: var(--color-primary);
+}
+
+.social-link--disabled {
+  opacity: 0.6;
+  cursor: default;
+  user-select: none;
+}
+
+.info-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.65);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.info-modal-card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-width: 580px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.info-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+}
+
+.info-modal-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.info-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  line-height: 1;
+  transition: all var(--transition);
+}
+
+.info-modal-close:hover {
+  color: var(--color-text);
+  background: var(--color-bg-alt);
+}
+
+.info-modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.info-modal-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.info-modal-highlight {
+  padding: 0.875rem 1rem;
+  background: var(--color-bg-alt);
+  border-left: 4px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text);
+}
+
+.info-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-alt);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}

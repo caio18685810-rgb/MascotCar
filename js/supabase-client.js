@@ -151,7 +151,7 @@ function normalizeSearchText(str) {
 function buildWhatsAppProductLink(product) {
   const productName = product ? product.name : 'Mascote';
   const textMsg = encodeURIComponent(`Olá! Gostaria de mais informações sobre o aromatizador "${productName}" no MascotCar.`);
-  return `https://wa.me/?text=${textMsg}`;
+  return `https://wa.me/5513991830511?text=${textMsg}`;
 }
 
 /**
@@ -1675,7 +1675,7 @@ function buildOrderWhatsAppLink({ orderCode, totalAmount, totalItems, customerNa
   msg += `*Total:* ${formatCurrency(totalAmount)} (${totalItems} ${totalItems === 1 ? 'item' : 'itens'})\n\n`;
   msg += 'Gostaria de confirmar os detalhes do meu pedido. Obrigado!';
 
-  return `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  return `https://wa.me/5513991830511?text=${encodeURIComponent(msg)}`;
 }
 
 /**

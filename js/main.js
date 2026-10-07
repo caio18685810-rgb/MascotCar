@@ -211,12 +211,69 @@ document.querySelectorAll('a[href^="#"]').forEach(link => {
 });
 
 /* ══════════════════════════════════════════
-   7. INICIALIZAÇÃO
+   7. MODAIS INSTITUCIONAIS (Etapa 3O.1)
+══════════════════════════════════════════ */
+function initInfoModals() {
+  const openButtons = document.querySelectorAll('[data-modal-open]');
+  const closeButtons = document.querySelectorAll('[data-modal-close]');
+
+  function closeAllInfoModals() {
+    document.querySelectorAll('.info-modal-backdrop').forEach(modal => {
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+    });
+    document.body.style.overflow = '';
+  }
+
+  openButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const modalId = btn.getAttribute('data-modal-open');
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.style.display = 'flex';
+        modal.removeAttribute('aria-hidden');
+        document.body.style.overflow = 'hidden';
+        const closeBtn = modal.querySelector('.info-modal-close');
+        if (closeBtn) closeBtn.focus();
+      }
+    });
+  });
+
+  closeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      closeAllInfoModals();
+    });
+  });
+
+  // Fechar ao clicar no backdrop
+  document.querySelectorAll('.info-modal-backdrop').forEach(modal => {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeAllInfoModals();
+      }
+    });
+  });
+
+  // Fechar com Escape se algum modal informativo estiver aberto
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const openModal = document.querySelector('.info-modal-backdrop[style*="display: flex"]');
+      if (openModal) {
+        closeAllInfoModals();
+      }
+    }
+  });
+}
+
+/* ══════════════════════════════════════════
+   8. INICIALIZAÇÃO
 ══════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   onScroll(); // estado inicial
+  initInfoModals(); // modais institucionais
   console.info(
-    '%c🚗 MascotCar%c — Site em desenvolvimento.',
+    '%c🚗 MascotCar%c — Site oficial carregado.',
     'font-size:1.2rem; font-weight:bold; color:#FF5722;',
     'font-size:.9rem; color:#666;'
   );
