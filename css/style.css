@@ -2615,12 +2615,12 @@ body.no-announcement {
 .cart-qty-btn {
   background: none;
   border: none;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--color-secondary);
   cursor: pointer;
@@ -2638,7 +2638,7 @@ body.no-announcement {
 
 .cart-qty-input {
   width: 38px;
-  height: 32px;
+  height: 36px;
   border: none;
   background: #fff;
   text-align: center;
@@ -2963,6 +2963,19 @@ body.no-announcement {
 
   .btn-header-cart__text {
     display: none;
+  }
+
+  /* Conforto de toque para controle de quantidade do carrinho no mobile */
+  .cart-qty-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 1.25rem;
+  }
+
+  .cart-qty-input {
+    width: 40px;
+    height: 38px;
+    font-size: 0.9375rem;
   }
 }
 

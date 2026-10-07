@@ -211,18 +211,28 @@ document.querySelectorAll('a[href^="#"]').forEach(link => {
 });
 
 /* ══════════════════════════════════════════
-   7. MODAIS INSTITUCIONAIS (Etapa 3O.1)
+   7. MODAIS INSTITUCIONAIS (Etapas 3O.1 & 3O.3)
 ══════════════════════════════════════════ */
 function initInfoModals() {
   const openButtons = document.querySelectorAll('[data-modal-open]');
   const closeButtons = document.querySelectorAll('[data-modal-close]');
+  let lastFocusedElementBeforeInfoModal = null;
 
   function closeAllInfoModals() {
+    let closedAny = false;
     document.querySelectorAll('.info-modal-backdrop').forEach(modal => {
+      if (modal.style.display === 'flex') {
+        closedAny = true;
+      }
       modal.style.display = 'none';
       modal.setAttribute('aria-hidden', 'true');
     });
     document.body.style.overflow = '';
+
+    if (closedAny && lastFocusedElementBeforeInfoModal && typeof lastFocusedElementBeforeInfoModal.focus === 'function') {
+      lastFocusedElementBeforeInfoModal.focus();
+      lastFocusedElementBeforeInfoModal = null;
+    }
   }
 
   openButtons.forEach(btn => {
@@ -231,11 +241,17 @@ function initInfoModals() {
       const modalId = btn.getAttribute('data-modal-open');
       const modal = document.getElementById(modalId);
       if (modal) {
+        lastFocusedElementBeforeInfoModal = btn;
         modal.style.display = 'flex';
         modal.removeAttribute('aria-hidden');
         document.body.style.overflow = 'hidden';
-        const closeBtn = modal.querySelector('.info-modal-close');
-        if (closeBtn) closeBtn.focus();
+
+        const focusables = getFocusableElements(modal);
+        if (focusables.length > 0) {
+          focusables[0].focus();
+        } else {
+          modal.focus();
+        }
       }
     });
   });
@@ -255,12 +271,45 @@ function initInfoModals() {
     });
   });
 
-  // Fechar com Escape se algum modal informativo estiver aberto
+  // Retorna elementos focáveis dentro de um contêiner
+  function getFocusableElements(container) {
+    const selector = 'button:not([disabled]), [href]:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    return Array.from(container.querySelectorAll(selector)).filter(el => {
+      return el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement;
+    });
+  }
+
+  // Teclado: Focus Trap e Escape para modais institucionais
   document.addEventListener('keydown', (e) => {
+    const openModal = document.querySelector('.info-modal-backdrop[style*="display: flex"]');
+    if (!openModal) return;
+
     if (e.key === 'Escape') {
-      const openModal = document.querySelector('.info-modal-backdrop[style*="display: flex"]');
-      if (openModal) {
-        closeAllInfoModals();
+      e.preventDefault();
+      closeAllInfoModals();
+      return;
+    }
+
+    if (e.key === 'Tab') {
+      const focusables = getFocusableElements(openModal);
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const firstEl = focusables[0];
+      const lastEl = focusables[focusables.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstEl || !openModal.contains(document.activeElement)) {
+          e.preventDefault();
+          lastEl.focus();
+        }
+      } else {
+        if (document.activeElement === lastEl || !openModal.contains(document.activeElement)) {
+          e.preventDefault();
+          firstEl.focus();
+        }
       }
     }
   });
