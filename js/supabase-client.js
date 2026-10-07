@@ -188,7 +188,7 @@ function buildProductCardHTML(product) {
   const desc = escapeHTML(product.description || 'Aromatizador veicular personalizado com fragrância duradoura.');
   const formattedPrice = formatCurrency(product.price);
   const stock = typeof product.stock === 'number' ? product.stock : 0;
-  const inStock = stock > 0;
+  const inStock = typeof product.stock === 'number' && product.stock > 0;
 
   // Categoria
   const categoryLabel = escapeHTML(
@@ -229,7 +229,7 @@ function buildProductCardHTML(product) {
             Ver Detalhes
           </button>
           <button type="button" class="btn btn--primary btn--sm btn-card-add-cart" data-cart-id="${escapeHTML(product.id)}" ${!inStock ? 'disabled title="Produto esgotado"' : 'title="Adicionar à Minha Lista"'}>
-            🛍️ Adicionar
+            ${inStock ? '🛍️ Adicionar' : 'Esgotado'}
           </button>
           <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="btn-card-whatsapp" title="Consultar produto via WhatsApp" aria-label="Consultar ${name} via WhatsApp">
             💬
@@ -267,7 +267,7 @@ function openProductDetailModal(productId) {
   const name = product.name || 'Mascote MascotCar';
   const desc = product.description || 'Aromatizador veicular personalizado com fragrância agradável e alta durabilidade.';
   const stock = typeof product.stock === 'number' ? product.stock : 0;
-  const inStock = stock > 0;
+  const inStock = typeof product.stock === 'number' && product.stock > 0;
 
   const categoryName = (product.categories && product.categories.name)
     ? product.categories.name

@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+
+Sitemap: https://caio18685810-rgb.github.io/MascotCar/sitemap.xml
