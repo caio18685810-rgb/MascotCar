@@ -434,6 +434,7 @@
 
   /**
    * Retorna os contadores de pedidos para cada categoria.
+   * Pedidos com status 'received' cuja reserva já expirou são contabilizados em 'expired'.
    * @returns {{all: number, active: number, completed: number, expired: number, cancelled: number}}
    */
   function calculateCategoryCounts() {
@@ -445,12 +446,16 @@
       cancelled: 0
     };
 
+    const now = Date.now();
+
     loadedOrders.forEach((order) => {
-      if (ACTIVE_STATUSES.includes(order.status)) {
+      const isReceivedExpired = order.status === 'received' && order.reservation_expires_at && new Date(order.reservation_expires_at).getTime() <= now;
+
+      if (ACTIVE_STATUSES.includes(order.status) && !isReceivedExpired) {
         counts.active++;
       } else if (order.status === 'completed') {
         counts.completed++;
-      } else if (order.status === 'expired') {
+      } else if (order.status === 'expired' || isReceivedExpired) {
         counts.expired++;
       } else if (order.status === 'cancelled') {
         counts.cancelled++;
@@ -548,13 +553,16 @@
       if (!isOrderInPeriod(order.created_at, period, dateStart, dateEnd)) {
         return false;
       }
-      // 1. Filtro por Categoria principal (Etapa 3N.4.2)
+      // 1. Filtro por Categoria principal (Etapa 3N.4.2 e refino 3T.2)
+      const now = Date.now();
+      const isReceivedExpired = order.status === 'received' && order.reservation_expires_at && new Date(order.reservation_expires_at).getTime() <= now;
+
       if (category === 'active') {
-        if (!ACTIVE_STATUSES.includes(order.status)) return false;
+        if (!ACTIVE_STATUSES.includes(order.status) || isReceivedExpired) return false;
       } else if (category === 'completed') {
         if (order.status !== 'completed') return false;
       } else if (category === 'expired') {
-        if (order.status !== 'expired') return false;
+        if (order.status !== 'expired' && !isReceivedExpired) return false;
       } else if (category === 'cancelled') {
         if (order.status !== 'cancelled') return false;
       }
