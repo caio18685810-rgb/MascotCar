@@ -1290,7 +1290,29 @@ function buildWhatsAppOrderMessage(itemsToSend) {
 /**
  * Abre o Modal de Revisão do Pedido antes de disparar o WhatsApp.
  */
-function openOrderReviewModal() {
+async function openOrderReviewModal() {
+  const proceedBtn = document.getElementById('cart-btn-proceed');
+  if (proceedBtn) {
+    proceedBtn.disabled = true;
+    proceedBtn.textContent = 'Verificando itens...';
+  }
+
+  // Atualiza catálogo em tempo real para capturar produtos inativados ou estoques alterados
+  try {
+    const productsRes = await fetchProductsFromSupabase();
+    if (productsRes && productsRes.success && Array.isArray(productsRes.data)) {
+      publicCatalogProducts = productsRes.data;
+      renderPublicCatalog();
+    }
+  } catch (err) {
+    console.warn('⚠️ [MascotCar] Falha ao revalidar catálogo ao abrir revisão:', err);
+  } finally {
+    if (proceedBtn) {
+      proceedBtn.disabled = selectedCartProductIds.size === 0;
+      proceedBtn.textContent = 'Finalizar Pedido';
+    }
+  }
+
   const selectedItems = [];
 
   // Revalidação em tempo real dos itens selecionados
@@ -1632,6 +1654,16 @@ function handleCheckoutError(error) {
   } else if (code === 'P0001') {
     // Informa que o estoque/disponibilidade mudou sem forçar alteração silenciosa
     showFormFeedback('Atenção: ' + msg + ' Por favor, revise as quantidades na sua lista.', 'warn');
+    // Atualiza catálogo em background e sincroniza estado do carrinho/drawer
+    fetchProductsFromSupabase().then((res) => {
+      if (res && res.success && Array.isArray(res.data)) {
+        publicCatalogProducts = res.data;
+        renderPublicCatalog();
+        syncCartWithCatalog();
+      }
+    }).catch((e) => {
+      console.warn('⚠️ [MascotCar] Falha ao sincronizar catálogo pós-P0001:', e);
+    });
   } else if (code === 'P0002') {
     showFormFeedback('Um dos itens selecionados não foi encontrado no catálogo. A lista foi sincronizada.', 'warn');
     syncCartWithCatalog();
