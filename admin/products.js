@@ -634,6 +634,11 @@
     await populateFilterCategoriesSelect();
     renderProductsTable();
     UI.showOnly('content');
+
+    // Notifica atualização de métricas do mini dashboard (Etapa 3S.3)
+    if (typeof window.MascotCarUpdateDashboardMetrics === 'function') {
+      window.MascotCarUpdateDashboardMetrics();
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -2084,6 +2089,7 @@
     handleRemoveProductImage,
     handleDeleteProduct,
     openLightbox,
-    closeLightbox
+    closeLightbox,
+    getLoadedProducts: () => [...loadedProducts]
   };
 })();

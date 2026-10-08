@@ -1942,6 +1942,86 @@ body {
   cursor: not-allowed;
 }
 
+/* --------------------------------------------------------------------------
+   Mini Dashboard de Indicadores (Etapa 3S.3)
+   -------------------------------------------------------------------------- */
+.admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.dash-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.15rem;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition), border-color var(--transition);
+}
+
+.dash-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.dash-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.dash-card__icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.dash-card__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dash-card__value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.15;
+  margin-bottom: 0.35rem;
+  font-family: inherit;
+}
+
+.dash-card__sub {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+
+@media (max-width: 992px) {
+  .admin-dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 576px) {
+  .admin-dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  .dash-card {
+    padding: 1rem;
+  }
+  .dash-card__value {
+    font-size: 1.5rem;
+  }
+}
+
 @media print {
   @page {
     size: A4 portrait;

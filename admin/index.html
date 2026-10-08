@@ -73,6 +73,49 @@
         </button>
       </nav>
 
+      <!-- Mini Dashboard do Admin (Etapa 3S.3) -->
+      <section class="admin-dashboard-grid" id="admin-mini-dashboard" aria-label="Indicadores Operacionais do Painel">
+        <!-- Card 1: Pedidos Operacionais -->
+        <article class="dash-card">
+          <div class="dash-card__header">
+            <span class="dash-card__icon">🛍️</span>
+            <span class="dash-card__title">Pedidos Operacionais</span>
+          </div>
+          <div class="dash-card__value" id="dash-orders-count">—</div>
+          <div class="dash-card__sub" id="dash-orders-sub">Aguardando dados...</div>
+        </article>
+
+        <!-- Card 2: Faturamento Concluído -->
+        <article class="dash-card">
+          <div class="dash-card__header">
+            <span class="dash-card__icon">💰</span>
+            <span class="dash-card__title">Faturamento Concluído</span>
+          </div>
+          <div class="dash-card__value" id="dash-revenue-total">—</div>
+          <div class="dash-card__sub" id="dash-revenue-sub">Aguardando dados...</div>
+        </article>
+
+        <!-- Card 3: Catálogo Ativo -->
+        <article class="dash-card">
+          <div class="dash-card__header">
+            <span class="dash-card__icon">📦</span>
+            <span class="dash-card__title">Catálogo Ativo</span>
+          </div>
+          <div class="dash-card__value" id="dash-products-active">—</div>
+          <div class="dash-card__sub" id="dash-products-sub">Aguardando dados...</div>
+        </article>
+
+        <!-- Card 4: Atenção ao Estoque -->
+        <article class="dash-card">
+          <div class="dash-card__header">
+            <span class="dash-card__icon">⚠️</span>
+            <span class="dash-card__title">Atenção ao Estoque</span>
+          </div>
+          <div class="dash-card__value" id="dash-stock-alert">—</div>
+          <div class="dash-card__sub" id="dash-stock-sub">Aguardando dados...</div>
+        </article>
+      </section>
+
       <!-- Card de Status da Autenticação -->
       <section class="card">
         <h2 class="card-title">
@@ -725,16 +768,124 @@
   <script src="products.js"></script>
   <script src="orders.js"></script>
   <script>
+    /**
+     * Calcula e atualiza os 4 indicadores do Mini Dashboard do Admin (Etapa 3S.3).
+     * Reutiliza estritamente os arrays em memória de pedidos e produtos sem nova consulta ao Supabase.
+     */
+    window.MascotCarUpdateDashboardMetrics = function () {
+      // 1. Elementos do DOM
+      const elOrdersCount = document.getElementById('dash-orders-count');
+      const elOrdersSub = document.getElementById('dash-orders-sub');
+      const elRevenueTotal = document.getElementById('dash-revenue-total');
+      const elRevenueSub = document.getElementById('dash-revenue-sub');
+      const elProductsActive = document.getElementById('dash-products-active');
+      const elProductsSub = document.getElementById('dash-products-sub');
+      const elStockAlert = document.getElementById('dash-stock-alert');
+      const elStockSub = document.getElementById('dash-stock-sub');
+
+      // 2. Processamento de Pedidos (se já carregados)
+      if (window.MascotCarOrders && typeof window.MascotCarOrders.getLoadedOrders === 'function') {
+        const orders = window.MascotCarOrders.getLoadedOrders();
+        if (Array.isArray(orders)) {
+          let operationalCount = 0;
+          let receivedCount = 0;
+          let preparingOrReadyCount = 0;
+          let completedCount = 0;
+          let totalRevenue = 0;
+
+          const operationalStatuses = ['received', 'confirmed', 'preparing', 'ready'];
+
+          for (let i = 0; i < orders.length; i++) {
+            const o = orders[i];
+            const status = o.status;
+
+            if (operationalStatuses.includes(status)) {
+              operationalCount++;
+              if (status === 'received') receivedCount++;
+              if (status === 'preparing' || status === 'ready') preparingOrReadyCount++;
+            } else if (status === 'completed') {
+              completedCount++;
+              totalRevenue += Number(o.total_amount || 0);
+            }
+          }
+
+          // Card 1: Pedidos Operacionais
+          if (elOrdersCount) elOrdersCount.textContent = operationalCount;
+          if (elOrdersSub) {
+            elOrdersSub.textContent = `${receivedCount} recebido(s) • ${preparingOrReadyCount} em preparo/pronto(s)`;
+          }
+
+          // Card 2: Faturamento Concluído
+          if (elRevenueTotal) {
+            elRevenueTotal.textContent = totalRevenue.toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL'
+            });
+          }
+          if (elRevenueSub) {
+            elRevenueSub.textContent = `${completedCount} ${completedCount === 1 ? 'pedido concluído' : 'pedidos concluídos'}`;
+          }
+        }
+      }
+
+      // 3. Processamento de Produtos (se já carregados)
+      if (window.MascotCarProducts && typeof window.MascotCarProducts.getLoadedProducts === 'function') {
+        const products = window.MascotCarProducts.getLoadedProducts();
+        if (Array.isArray(products) && products.length > 0) {
+          let activeCount = 0;
+          let outOfStockCount = 0;
+          let lowStockCount = 0;
+          const totalCount = products.length;
+
+          for (let i = 0; i < totalCount; i++) {
+            const p = products[i];
+            if (p.active === true) {
+              activeCount++;
+            }
+
+            const stockNum = typeof p.stock === 'number' ? p.stock : 0;
+            if (stockNum <= 0) {
+              outOfStockCount++;
+            } else if (stockNum <= 3) {
+              lowStockCount++;
+            }
+          }
+
+          // Card 3: Catálogo Ativo
+          if (elProductsActive) elProductsActive.textContent = activeCount;
+          if (elProductsSub) {
+            const inactiveCount = totalCount - activeCount;
+            elProductsSub.textContent = `${activeCount} ativo(s) de ${totalCount} cadastrado(s) (${inactiveCount} pausado(s))`;
+          }
+
+          // Card 4: Atenção ao Estoque
+          if (elStockAlert) {
+            elStockAlert.textContent = `${outOfStockCount} esgotado(s)`;
+            if (outOfStockCount > 0) {
+              elStockAlert.style.color = 'var(--danger)';
+            } else {
+              elStockAlert.style.color = 'var(--text-main)';
+            }
+          }
+          if (elStockSub) {
+            elStockSub.textContent = `${lowStockCount} produto(s) com estoque crítico (≤ 3 un)`;
+          }
+        }
+      }
+    };
+
     document.addEventListener('DOMContentLoaded', async () => {
       if (window.MascotCarAuth && window.MascotCarAuth.protectAdminPage) {
         const isAuthorized = await window.MascotCarAuth.protectAdminPage();
         if (isAuthorized) {
           if (window.MascotCarProducts && window.MascotCarProducts.init) {
-            window.MascotCarProducts.init();
+            await window.MascotCarProducts.init();
           }
           if (window.MascotCarOrders && window.MascotCarOrders.init) {
-            window.MascotCarOrders.init();
+            await window.MascotCarOrders.init();
           }
+          // Atualiza os indicadores iniciais do Mini Dashboard
+          window.MascotCarUpdateDashboardMetrics();
         }
       }
     });

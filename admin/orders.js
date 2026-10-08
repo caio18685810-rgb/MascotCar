@@ -1374,6 +1374,11 @@
 
     loadedOrders = result.data || [];
     renderOrdersTable();
+
+    // Notifica atualização de métricas do mini dashboard (Etapa 3S.3)
+    if (typeof window.MascotCarUpdateDashboardMetrics === 'function') {
+      window.MascotCarUpdateDashboardMetrics();
+    }
   }
 
   /**
@@ -1528,6 +1533,11 @@
       if (result.success && Array.isArray(result.data)) {
         loadedOrders = result.data;
         renderOrdersTable();
+
+        // Notifica atualização de métricas do mini dashboard (Etapa 3S.3)
+        if (typeof window.MascotCarUpdateDashboardMetrics === 'function') {
+          window.MascotCarUpdateDashboardMetrics();
+        }
 
         // Se o modal de detalhes estiver aberto, atualiza silenciosamente os dados básicos do pedido
         if (currentDetailOrder && currentDetailOrder.id) {
