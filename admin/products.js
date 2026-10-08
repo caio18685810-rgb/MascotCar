@@ -1008,7 +1008,6 @@
       activeCheckbox: document.getElementById('edit-active'),
       imageViewerContainer: document.getElementById('product-image-viewer'),
       btnRemoveImage: document.getElementById('btn-remove-image'),
-      btnDeleteProduct: document.getElementById('btn-delete-product'),
       imageInput: document.getElementById('edit-image')
     };
   }
@@ -1226,9 +1225,9 @@
   }
 
   function closeEditModal(force = false) {
-    const { modal, form, btnRemoveImage, btnDeleteProduct, imageInput, submitBtn } = getEditModalElements();
+    const { modal, form, btnRemoveImage, imageInput, submitBtn } = getEditModalElements();
     if (!modal) return;
-    if (!force && ((submitBtn && submitBtn.disabled) || (btnDeleteProduct && btnDeleteProduct.disabled))) {
+    if (!force && (submitBtn && submitBtn.disabled)) {
       return;
     }
     modal.style.display = 'none';
@@ -1238,10 +1237,6 @@
       btnRemoveImage.style.display = 'none';
       btnRemoveImage.disabled = false;
       btnRemoveImage.innerHTML = '<span>🗑️ Remover Imagem</span>';
-    }
-    if (btnDeleteProduct) {
-      btnDeleteProduct.disabled = false;
-      btnDeleteProduct.innerHTML = '<span>🗑️ Excluir Produto</span>';
     }
     hideEditModalAlert();
   }
@@ -1405,139 +1400,6 @@
       if (btnRemoveImage) {
         btnRemoveImage.disabled = false;
         btnRemoveImage.innerHTML = '<span>🗑️ Remover Imagem</span>';
-      }
-      if (submitBtn) {
-        submitBtn.disabled = false;
-      }
-    }
-  }
-
-  /**
-   * Fluxo de exclusão segura de produto e sua imagem no Storage (Etapa 3J):
-   * 1. Confirmação explícita do administrador.
-   * 2. Exclusão no banco de dados PRIMEIRO (products.delete().eq('id', productId)).
-   * 3. Se a exclusão no banco falhar:
-   *    - Interrompe a execução, NÃO remove a imagem do Storage e alerta o erro.
-   * 4. Se a exclusão no banco for bem-sucedida:
-   *    - Verifica se o produto possuía imagem no Storage.
-   *    - Aplica proteções estritas: não remove imagem legada ('produto teste.webp')
-   *      e garante que o caminho corresponda ao padrão seguro do produto ('prod-${productId}-*').
-   *    - Se a imagem for elegível, remove do Storage via remove([storagePath]).
-   *    - Se a remoção no Storage falhar: emite alerta/log informativo sem reverter o banco.
-   * 5. Fecha o modal de edição (com force=true) e recarrega os produtos.
-   * @param {string} [idOverride]
-   */
-  async function handleDeleteProduct(idOverride) {
-    const { idInput, btnDeleteProduct, btnRemoveImage, submitBtn } = getEditModalElements();
-    const productId = idOverride || (idInput ? idInput.value : '');
-
-    if (!productId) {
-      showEditModalAlert('Identificador do produto não encontrado.', 'error');
-      return;
-    }
-
-    const prod = loadedProducts.find((p) => p.id === productId);
-    const productName = prod?.name ? `"${prod.name}"` : 'este produto';
-
-    // 1. Confirmação obrigatória antes de qualquer ação destrutiva
-    const confirmed = window.confirm(
-      `Tem certeza que deseja excluir permanentemente ${productName}?\n\nEsta ação não pode ser desfeita.`
-    );
-    if (!confirmed) return;
-
-    hideEditModalAlert();
-
-    const client = getClient();
-    if (!client) {
-      showEditModalAlert('Cliente Supabase não inicializado.', 'error');
-      return;
-    }
-
-    // Trava de segurança nos botões de ação do modal
-    if (btnDeleteProduct) {
-      btnDeleteProduct.disabled = true;
-      btnDeleteProduct.innerHTML = '<span>Excluindo...</span>';
-    }
-    if (btnRemoveImage) {
-      btnRemoveImage.disabled = true;
-    }
-    if (submitBtn) {
-      submitBtn.disabled = true;
-    }
-
-    const currentImageUrl = prod?.image_url || null;
-    const storagePath = currentImageUrl ? extractStoragePath(currentImageUrl) : null;
-
-    try {
-      // 2. EXCLUSÃO NO BANCO DE DADOS PRIMEIRO
-      const { error: dbError } = await client
-        .from('products')
-        .delete()
-        .eq('id', productId);
-
-      if (dbError) {
-        console.error('❌ [MascotCar] Erro ao excluir produto no banco:', dbError);
-        showEditModalAlert(dbError.message || 'Falha ao excluir produto no banco de dados.', 'error');
-        if (btnDeleteProduct) {
-          btnDeleteProduct.disabled = false;
-          btnDeleteProduct.innerHTML = '<span>🗑️ Excluir Produto</span>';
-        }
-        if (btnRemoveImage) {
-          btnRemoveImage.disabled = false;
-        }
-        if (submitBtn) {
-          submitBtn.disabled = false;
-        }
-        return;
-      }
-
-      console.info(`✔ [MascotCar] Produto ${productId} excluído com sucesso do banco de dados.`);
-
-      // 3. REMOÇÃO DA IMAGEM DO STORAGE (somente após sucesso confirmado no banco)
-      let storageWarning = null;
-      if (storagePath) {
-        const isLegacyProtected = storagePath === 'produto teste.webp' || currentImageUrl.includes('produto%20teste.webp');
-        const isProductPattern = Boolean(storagePath.startsWith(`prod-${productId}-`));
-
-        if (isLegacyProtected) {
-          console.info('ℹ️ [MascotCar Storage] Imagem legada "produto teste.webp" preservada no Storage por segurança.');
-        } else if (!isProductPattern) {
-          console.warn(`⚠️ [MascotCar Storage] Arquivo "${storagePath}" não pertence ao padrão seguro prod-${productId}-*, preservado no Storage.`);
-        } else {
-          try {
-            const { error: storageError } = await client.storage
-              .from('products')
-              .remove([storagePath]);
-
-            if (storageError) {
-              console.warn('⚠️ [MascotCar Storage] Aviso: Produto excluído do banco, mas falha ao remover arquivo do Storage:', storageError.message);
-              storageWarning = 'O produto foi excluído, mas não foi possível remover sua imagem do armazenamento de arquivos.';
-            } else {
-              console.info(`✔ [MascotCar Storage] Imagem "${storagePath}" excluída com sucesso do Storage.`);
-            }
-          } catch (stErr) {
-            console.warn('⚠️ [MascotCar Storage] Exceção ao remover arquivo do Storage:', stErr);
-            storageWarning = 'O produto foi excluído, mas ocorreu uma falha ao contatar o armazenamento para remoção da imagem.';
-          }
-        }
-      }
-
-      // 4. Fechamento do modal e recarregamento da listagem
-      closeEditModal(true);
-      await loadProducts();
-
-      if (storageWarning) {
-        alert(storageWarning);
-      }
-    } catch (err) {
-      console.error('❌ [MascotCar] Erro inesperado ao excluir produto:', err);
-      showEditModalAlert('Ocorreu um erro inesperado ao excluir o produto.', 'error');
-      if (btnDeleteProduct) {
-        btnDeleteProduct.disabled = false;
-        btnDeleteProduct.innerHTML = '<span>🗑️ Excluir Produto</span>';
-      }
-      if (btnRemoveImage) {
-        btnRemoveImage.disabled = false;
       }
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -2029,11 +1891,6 @@
       btnRemoveImageEl.addEventListener('click', handleRemoveProductImage);
     }
 
-    const btnDeleteProductEl = document.getElementById('btn-delete-product');
-    if (btnDeleteProductEl) {
-      btnDeleteProductEl.addEventListener('click', () => handleDeleteProduct());
-    }
-
     // ------------------------------------------------------------------------
     // Eventos do Lightbox Modal (Etapa 3D)
     // ------------------------------------------------------------------------
@@ -2107,7 +1964,6 @@
     openEditModal,
     closeEditModal,
     handleRemoveProductImage,
-    handleDeleteProduct,
     openLightbox,
     closeLightbox,
     getLoadedProducts: () => [...loadedProducts],
