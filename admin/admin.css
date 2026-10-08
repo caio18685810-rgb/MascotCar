@@ -2022,6 +2022,195 @@ body {
   }
 }
 
+/* ==========================================================================
+   Alertas Operacionais, Ações Rápidas e Notificações Toast (Etapa 3S.4)
+   ========================================================================== */
+
+.admin-alerts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  align-items: stretch;
+}
+
+.admin-alert-chip {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+}
+
+.admin-alert-chip--warning {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+}
+
+.admin-alert-chip--danger {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+.admin-alert-chip__icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.admin-alert-chip__text {
+  color: inherit;
+}
+
+.admin-alert-chip__text strong {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.btn-quick-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 34px;
+  transition: all var(--transition-fast);
+}
+
+.btn-quick-action:hover,
+.btn-quick-action:focus-visible {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.4);
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
+}
+
+/* Container de Notificações Toast */
+.admin-toast-container {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 380px;
+  width: calc(100% - 2.5rem);
+  pointer-events: none;
+}
+
+.admin-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: #1e293b;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  color: var(--text-main);
+  animation: adminToastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.admin-toast--fading {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.admin-toast__body {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  flex: 1;
+}
+
+.admin-toast__icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.admin-toast__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.admin-toast__title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #60a5fa;
+}
+
+.admin-toast__desc {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.admin-toast__close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.25rem;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition-fast);
+}
+
+.admin-toast__close:hover,
+.admin-toast__close:focus-visible {
+  color: var(--text-main);
+  outline: 2px solid var(--primary-light);
+}
+
+@keyframes adminToastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 576px) {
+  .admin-alerts-bar {
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .admin-alert-chip {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .btn-quick-action {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px; /* Área de toque confortável em mobile */
+  }
+}
+
 @media print {
   @page {
     size: A4 portrait;

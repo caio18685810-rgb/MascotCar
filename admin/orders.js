@@ -42,6 +42,10 @@
   let ordersPollingInterval = null;
   let isPollingRunning = false;
 
+  // Rastreamento de pedidos conhecidos para detecção de novos pedidos no polling (Etapa 3S.4)
+  const knownOrderIds = new Set();
+  let isInitialLoadComplete = false;
+
   /**
    * Retorna a instância ativa do cliente Supabase.
    * @returns {Object|null}
@@ -1373,9 +1377,14 @@
     }
 
     loadedOrders = result.data || [];
+    loadedOrders.forEach((o) => {
+      if (o.id) knownOrderIds.add(o.id);
+    });
+    isInitialLoadComplete = true;
+
     renderOrdersTable();
 
-    // Notifica atualização de métricas do mini dashboard (Etapa 3S.3)
+    // Notifica atualização de métricas do mini dashboard (Etapa 3S.3 e 3S.4)
     if (typeof window.MascotCarUpdateDashboardMetrics === 'function') {
       window.MascotCarUpdateDashboardMetrics();
     }
@@ -1531,10 +1540,26 @@
       // Reutiliza a consulta padrão sem disparar loading visual intrusivo
       const result = await fetchOrders();
       if (result.success && Array.isArray(result.data)) {
-        loadedOrders = result.data;
+        const freshOrders = result.data;
+
+        // Se a carga inicial já foi concluída, detecta pedidos inéditos
+        if (isInitialLoadComplete && knownOrderIds.size > 0) {
+          const incomingNewOrders = freshOrders.filter((o) => !knownOrderIds.has(o.id));
+          if (incomingNewOrders.length > 0) {
+            triggerNewOrderToast(incomingNewOrders);
+          }
+        }
+
+        // Sincroniza conjunto de IDs conhecidos
+        freshOrders.forEach((o) => {
+          if (o.id) knownOrderIds.add(o.id);
+        });
+        isInitialLoadComplete = true;
+
+        loadedOrders = freshOrders;
         renderOrdersTable();
 
-        // Notifica atualização de métricas do mini dashboard (Etapa 3S.3)
+        // Notifica atualização de métricas do mini dashboard (Etapa 3S.3 e 3S.4)
         if (typeof window.MascotCarUpdateDashboardMetrics === 'function') {
           window.MascotCarUpdateDashboardMetrics();
         }
@@ -1805,8 +1830,108 @@
     const result = await fetchOrders();
     if (result.success && Array.isArray(result.data)) {
       loadedOrders = result.data;
+      loadedOrders.forEach((o) => {
+        if (o.id) knownOrderIds.add(o.id);
+      });
+      isInitialLoadComplete = true;
       updatePendingOrdersBadge();
     }
+  }
+
+  /**
+   * Exibe toast visual discreto informando novos pedidos recebidos durante o polling (Etapa 3S.4).
+   * @param {Array} newOrders
+   */
+  function triggerNewOrderToast(newOrders) {
+    if (!Array.isArray(newOrders) || newOrders.length === 0) return;
+
+    const container = document.getElementById('admin-toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'admin-toast';
+    toast.setAttribute('role', 'status');
+
+    let titleText = '';
+    if (newOrders.length === 1) {
+      const code = newOrders[0].order_code || 'Novo pedido';
+      titleText = `🔔 Novo pedido recebido: ${code}`;
+    } else {
+      titleText = `🔔 ${newOrders.length} novos pedidos recebidos`;
+    }
+
+    toast.innerHTML = `
+      <div class="admin-toast__body" title="Clique para visualizar os pedidos">
+        <span class="admin-toast__icon">🛍️</span>
+        <div class="admin-toast__content">
+          <strong class="admin-toast__title">${escapeHtml(titleText)}</strong>
+          <span class="admin-toast__desc">Atualizado via polling operacional</span>
+        </div>
+      </div>
+      <button type="button" class="admin-toast__close" aria-label="Fechar notificação">&times;</button>
+    `;
+
+    // Clicar no corpo leva para a aba de pedidos
+    const bodyEl = toast.querySelector('.admin-toast__body');
+    if (bodyEl) {
+      bodyEl.addEventListener('click', () => {
+        if (typeof window.MascotCarOrdersSwitchTab === 'function') {
+          window.MascotCarOrdersSwitchTab('orders');
+        }
+        toast.remove();
+      });
+    }
+
+    // Botão de fechar manual
+    const closeBtn = toast.querySelector('.admin-toast__close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toast.remove();
+      });
+    }
+
+    container.appendChild(toast);
+
+    // Auto-remover após 7 segundos
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.classList.add('admin-toast--fading');
+        setTimeout(() => toast.remove(), 400);
+      }
+    }, 7000);
+  }
+
+  /**
+   * Aplica diretamente um filtro de status, seleciona a aba correspondente e renderiza (Etapa 3S.4).
+   * @param {string} targetStatus
+   */
+  function applyDirectStatusFilter(targetStatus) {
+    // Garante que a aba de pedidos esteja aberta
+    if (typeof window.MascotCarOrdersSwitchTab === 'function') {
+      window.MascotCarOrdersSwitchTab('orders');
+    }
+
+    currentFilters.status = targetStatus;
+    if (targetStatus === 'received') {
+      currentFilters.category = 'active';
+    }
+
+    const statusFilter = UI.statusFilter();
+    if (statusFilter) {
+      statusFilter.value = targetStatus;
+    }
+
+    // Atualiza abas visuais de categorias
+    const tabs = document.querySelectorAll('.orders-category-tab');
+    tabs.forEach((tab) => {
+      const cat = tab.getAttribute('data-category');
+      const isSelected = cat === currentFilters.category;
+      tab.classList.toggle('active', isSelected);
+      tab.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+    });
+
+    renderOrdersTable();
   }
 
   // Expõe API pública do módulo de pedidos
@@ -1820,6 +1945,7 @@
     getFilteredOrders,
     startPolling: startOrdersPolling,
     stopPolling: stopOrdersPolling,
-    getLoadedOrders: () => [...loadedOrders]
+    getLoadedOrders: () => [...loadedOrders],
+    applyDirectStatusFilter
   };
 })();

@@ -38,6 +38,9 @@
 
   <!-- 3. Painel Administrativo Autorizado -->
   <div id="admin-app" style="display: none;">
+    <!-- Container de Notificações Toast (Etapa 3S.4) -->
+    <div id="admin-toast-container" class="admin-toast-container" aria-live="polite" aria-atomic="true"></div>
+
     <!-- Barra Superior -->
     <header class="admin-navbar">
       <a href="../index.html" class="navbar-brand" title="Ver Loja Pública">
@@ -115,6 +118,15 @@
           <div class="dash-card__sub" id="dash-stock-sub">Aguardando dados...</div>
         </article>
       </section>
+
+      <!-- Avisos e Ações Rápidas Operacionais (Etapa 3S.4) -->
+      <section
+        class="admin-alerts-bar"
+        id="admin-operational-alerts"
+        aria-live="polite"
+        aria-label="Avisos operacionais"
+        style="display: none;"
+      ></section>
 
       <!-- Card de Status da Autenticação -->
       <section class="card">
@@ -226,6 +238,7 @@
                 <select id="filter-stock" class="toolbar-select">
                   <option value="all">Todos</option>
                   <option value="in_stock">Em estoque (> 0)</option>
+                  <option value="low_stock">Estoque crítico (≤ 3)</option>
                   <option value="out_of_stock">Esgotados (0)</option>
                 </select>
               </div>
@@ -783,10 +796,18 @@
       const elStockAlert = document.getElementById('dash-stock-alert');
       const elStockSub = document.getElementById('dash-stock-sub');
 
+      // Estado para a Barra de Alertas Operacionais (Etapa 3S.4)
+      let pendingOrdersAlertCount = 0;
+      let outOfStockAlertCount = 0;
+      let lowStockAlertCount = 0;
+      let hasOrdersData = false;
+      let hasProductsData = false;
+
       // 2. Processamento de Pedidos (se já carregados)
       if (window.MascotCarOrders && typeof window.MascotCarOrders.getLoadedOrders === 'function') {
         const orders = window.MascotCarOrders.getLoadedOrders();
         if (Array.isArray(orders)) {
+          hasOrdersData = true;
           let operationalCount = 0;
           let receivedCount = 0;
           let preparingOrReadyCount = 0;
@@ -794,6 +815,7 @@
           let totalRevenue = 0;
 
           const operationalStatuses = ['received', 'confirmed', 'preparing', 'ready'];
+          const now = Date.now();
 
           for (let i = 0; i < orders.length; i++) {
             const o = orders[i];
@@ -801,7 +823,16 @@
 
             if (operationalStatuses.includes(status)) {
               operationalCount++;
-              if (status === 'received') receivedCount++;
+              if (status === 'received') {
+                receivedCount++;
+                // Verifica reserva ativa para alerta de pendência
+                if (o.reservation_expires_at) {
+                  const exp = new Date(o.reservation_expires_at).getTime();
+                  if (exp > now) pendingOrdersAlertCount++;
+                } else {
+                  pendingOrdersAlertCount++;
+                }
+              }
               if (status === 'preparing' || status === 'ready') preparingOrReadyCount++;
             } else if (status === 'completed') {
               completedCount++;
@@ -832,6 +863,7 @@
       if (window.MascotCarProducts && typeof window.MascotCarProducts.getLoadedProducts === 'function') {
         const products = window.MascotCarProducts.getLoadedProducts();
         if (Array.isArray(products) && products.length > 0) {
+          hasProductsData = true;
           let activeCount = 0;
           let outOfStockCount = 0;
           let lowStockCount = 0;
@@ -850,6 +882,9 @@
               lowStockCount++;
             }
           }
+
+          outOfStockAlertCount = outOfStockCount;
+          lowStockAlertCount = lowStockCount;
 
           // Card 3: Catálogo Ativo
           if (elProductsActive) elProductsActive.textContent = activeCount;
@@ -870,6 +905,59 @@
           if (elStockSub) {
             elStockSub.textContent = `${lowStockCount} produto(s) com estoque crítico (≤ 3 un)`;
           }
+        }
+      }
+
+      // 4. Renderização da Barra de Alertas Operacionais e Ações Rápidas (Etapa 3S.4)
+      const alertsBar = document.getElementById('admin-operational-alerts');
+      if (alertsBar) {
+        const alertItems = [];
+
+        // Alerta 1: Pedidos aguardando confirmação
+        if (hasOrdersData && pendingOrdersAlertCount > 0) {
+          alertItems.push(`
+            <div class="admin-alert-chip admin-alert-chip--warning">
+              <span class="admin-alert-chip__icon">⚠️</span>
+              <span class="admin-alert-chip__text"><strong>${pendingOrdersAlertCount}</strong> ${pendingOrdersAlertCount === 1 ? 'pedido aguardando confirmação' : 'pedidos aguardando confirmação'}</span>
+              <button type="button" class="btn-quick-action" onclick="MascotCarOrders && MascotCarOrders.applyDirectStatusFilter ? MascotCarOrders.applyDirectStatusFilter('received') : null" aria-label="Ver pedidos pendentes de confirmação">
+                Ver pedidos pendentes &rarr;
+              </button>
+            </div>
+          `);
+        }
+
+        // Alerta 2: Estoque crítico (≤ 3 un)
+        if (hasProductsData && lowStockAlertCount > 0) {
+          alertItems.push(`
+            <div class="admin-alert-chip admin-alert-chip--warning">
+              <span class="admin-alert-chip__icon">⚠️</span>
+              <span class="admin-alert-chip__text"><strong>${lowStockAlertCount}</strong> ${lowStockAlertCount === 1 ? 'produto com estoque crítico (≤ 3 un)' : 'produtos com estoque crítico (≤ 3 un)'}</span>
+              <button type="button" class="btn-quick-action" onclick="if(window.MascotCarOrdersSwitchTab){window.MascotCarOrdersSwitchTab('products');} if(window.MascotCarProducts && window.MascotCarProducts.applyDirectStockFilter){window.MascotCarProducts.applyDirectStockFilter('low_stock');}" aria-label="Ver produtos com estoque crítico">
+                Ver estoque crítico &rarr;
+              </button>
+            </div>
+          `);
+        }
+
+        // Alerta 3: Produtos esgotados (0 un)
+        if (hasProductsData && outOfStockAlertCount > 0) {
+          alertItems.push(`
+            <div class="admin-alert-chip admin-alert-chip--danger">
+              <span class="admin-alert-chip__icon">🚫</span>
+              <span class="admin-alert-chip__text"><strong>${outOfStockAlertCount}</strong> ${outOfStockAlertCount === 1 ? 'produto esgotado' : 'produtos esgotados'}</span>
+              <button type="button" class="btn-quick-action" onclick="if(window.MascotCarOrdersSwitchTab){window.MascotCarOrdersSwitchTab('products');} if(window.MascotCarProducts && window.MascotCarProducts.applyDirectStockFilter){window.MascotCarProducts.applyDirectStockFilter('out_of_stock');}" aria-label="Ver produtos esgotados">
+                Ver esgotados &rarr;
+              </button>
+            </div>
+          `);
+        }
+
+        if (alertItems.length > 0) {
+          alertsBar.innerHTML = alertItems.join('');
+          alertsBar.style.display = 'flex';
+        } else {
+          alertsBar.innerHTML = '';
+          alertsBar.style.display = 'none';
         }
       }
     };

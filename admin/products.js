@@ -336,6 +336,9 @@
       if (currentFilters.stock === 'in_stock') {
         const st = Number(prod.stock);
         if (isNaN(st) || st <= 0) return false;
+      } else if (currentFilters.stock === 'low_stock') {
+        const st = Number(prod.stock);
+        if (isNaN(st) || st <= 0 || st > 3) return false;
       } else if (currentFilters.stock === 'out_of_stock') {
         const st = Number(prod.stock);
         if (!isNaN(st) && st > 0) return false;
@@ -2075,6 +2078,23 @@
     loadProducts();
   }
 
+  /**
+   * Aplica um filtro de estoque diretamente e re-renderiza a tabela (Etapa 3S.4).
+   * @param {string} stockType - 'all' | 'in_stock' | 'low_stock' | 'out_of_stock'
+   */
+  function applyDirectStockFilter(stockType) {
+    currentFilters.stock = stockType;
+    const stockSelect = document.getElementById('filter-stock');
+    if (stockSelect) {
+      stockSelect.value = stockType;
+    }
+    const resetBtn = document.getElementById('btn-reset-filters');
+    if (resetBtn) {
+      resetBtn.style.display = stockType !== 'all' ? 'inline-flex' : 'none';
+    }
+    renderProductsTable();
+  }
+
   // Expõe no escopo global
   window.MascotCarProducts = {
     init,
@@ -2090,6 +2110,7 @@
     handleDeleteProduct,
     openLightbox,
     closeLightbox,
-    getLoadedProducts: () => [...loadedProducts]
+    getLoadedProducts: () => [...loadedProducts],
+    applyDirectStockFilter
   };
 })();
