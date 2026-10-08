@@ -327,6 +327,30 @@
                 </select>
               </div>
 
+              <!-- Filtro por Período (Etapa 3S.2) -->
+              <div class="toolbar-select-wrap">
+                <label for="orders-period-filter" class="toolbar-select-label">Período:</label>
+                <select id="orders-period-filter" class="toolbar-select" aria-label="Filtrar pedidos por período">
+                  <option value="all">Todo o período</option>
+                  <option value="today">Hoje</option>
+                  <option value="7days">Últimos 7 dias</option>
+                  <option value="30days">Últimos 30 dias</option>
+                  <option value="custom">Personalizado...</option>
+                </select>
+              </div>
+
+              <!-- Datas Personalizadas (Etapa 3S.2) -->
+              <div id="orders-custom-date-wrap" class="toolbar-custom-date-wrap" style="display: none;">
+                <input type="date" id="orders-date-start" class="toolbar-date-input" aria-label="Data inicial">
+                <span class="toolbar-date-sep">até</span>
+                <input type="date" id="orders-date-end" class="toolbar-date-input" aria-label="Data final">
+              </div>
+
+              <!-- Botão Exportar CSV (Etapa 3S.2) -->
+              <button type="button" id="orders-export-csv-btn" class="btn btn-secondary btn-sm btn-export-csv" title="Exportar pedidos visíveis em formato CSV">
+                <span>📥 Exportar CSV</span>
+              </button>
+
               <!-- Botão Limpar Filtros -->
               <button type="button" id="orders-reset-filters-btn" class="btn btn-secondary btn-sm" style="display: none; width: auto; padding: 0.45rem 0.75rem; white-space: nowrap;" title="Redefinir busca e filtros">Limpar filtros</button>
             </div>

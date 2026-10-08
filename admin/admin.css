@@ -1894,6 +1894,54 @@ body {
 /* ==========================================================================
    Etapa 3N.5.2 — Picking Slip / Impressão do Pedido no Admin (@media print)
    ========================================================================== */
+/* --------------------------------------------------------------------------
+   Filtro por Período e Exportação CSV (Etapa 3S.2)
+   -------------------------------------------------------------------------- */
+.toolbar-custom-date-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-card);
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.toolbar-date-input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.toolbar-date-input:focus {
+  border-color: var(--primary);
+}
+
+.toolbar-date-sep {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.btn-export-csv {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.btn-export-csv:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media print {
   @page {
     size: A4 portrait;

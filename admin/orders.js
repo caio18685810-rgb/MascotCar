@@ -21,11 +21,14 @@
   // Estado local em memória dos pedidos carregados
   let loadedOrders = [];
 
-  // Filtros ativos (padrão: categoria 'active' conforme Etapa 3N.4.2)
+  // Filtros ativos (padrão: categoria 'active' conforme Etapa 3N.4.2 e período 'all' na 3S.2)
   const currentFilters = {
     search: '',
     category: 'active',
-    status: 'all'
+    status: 'all',
+    period: 'all', // 'all' | 'today' | '7days' | '30days' | 'custom'
+    dateStart: '', // 'YYYY-MM-DD'
+    dateEnd: ''    // 'YYYY-MM-DD'
   };
 
   // Pedido atualmente aberto no modal de detalhes
@@ -279,6 +282,11 @@
     countBadge: () => document.getElementById('orders-count-badge'),
     searchInput: () => document.getElementById('orders-search-input'),
     statusFilter: () => document.getElementById('orders-status-filter'),
+    periodFilter: () => document.getElementById('orders-period-filter'),
+    customDateWrap: () => document.getElementById('orders-custom-date-wrap'),
+    dateStartInput: () => document.getElementById('orders-date-start'),
+    dateEndInput: () => document.getElementById('orders-date-end'),
+    exportCsvBtn: () => document.getElementById('orders-export-csv-btn'),
     resetBtn: () => document.getElementById('orders-reset-filters-btn'),
     refreshBtn: () => document.getElementById('orders-refresh-btn'),
     retryBtn: () => document.getElementById('orders-retry-btn'),
@@ -449,15 +457,93 @@
   }
 
   /**
-   * Aplica filtros de categoria, status específico e busca em memória sobre a lista de pedidos.
+   * Avalia se um pedido está contido na janela temporal selecionada (Etapa 3S.2).
+   * Respeita estritamente as regras de timezone e janelas:
+   * - 'all': sem restrição temporal
+   * - 'today': do início do dia civil atual (00:00:00.000) até o momento atual
+   * - '7days': janela móvel dos últimos 7 x 24h até o momento atual
+   * - '30days': janela móvel dos últimos 30 x 24h até o momento atual
+   * - 'custom': data inicial às 00:00:00.000 e data final às 23:59:59.999 no timezone local
+   *
+   * @param {string} createdAtIso
+   * @param {string} period
+   * @param {string} dateStartStr
+   * @param {string} dateEndStr
+   * @returns {boolean}
+   */
+  function isOrderInPeriod(createdAtIso, period, dateStartStr, dateEndStr) {
+    if (!period || period === 'all') return true;
+    if (!createdAtIso) return false;
+
+    const orderTime = new Date(createdAtIso).getTime();
+    if (isNaN(orderTime)) return false;
+
+    const now = Date.now();
+
+    if (period === 'today') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      return orderTime >= todayStart.getTime() && orderTime <= now;
+    }
+
+    if (period === '7days') {
+      const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+      return orderTime >= sevenDaysAgo && orderTime <= now;
+    }
+
+    if (period === '30days') {
+      const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
+      return orderTime >= thirtyDaysAgo && orderTime <= now;
+    }
+
+    if (period === 'custom') {
+      let startLimit = -Infinity;
+      let endLimit = Infinity;
+
+      if (dateStartStr) {
+        const [sYear, sMonth, sDay] = dateStartStr.split('-').map(Number);
+        const dStart = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
+        if (!isNaN(dStart.getTime())) {
+          startLimit = dStart.getTime();
+        }
+      }
+
+      if (dateEndStr) {
+        const [eYear, eMonth, eDay] = dateEndStr.split('-').map(Number);
+        const dEnd = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
+        if (!isNaN(dEnd.getTime())) {
+          endLimit = dEnd.getTime();
+        }
+      }
+
+      // Se ambas as datas forem fornecidas e startLimit > endLimit, período é inválido
+      if (dateStartStr && dateEndStr && startLimit > endLimit) {
+        return false;
+      }
+
+      return orderTime >= startLimit && orderTime <= endLimit;
+    }
+
+    return true;
+  }
+
+  /**
+   * Aplica filtros de período, categoria, status específico e busca em memória sobre a lista de pedidos.
    * @returns {Array}
    */
   function getFilteredOrders() {
     const search = currentFilters.search.trim().toLowerCase();
     const category = currentFilters.category || 'active';
     const status = currentFilters.status;
+    const period = currentFilters.period || 'all';
+    const dateStart = currentFilters.dateStart;
+    const dateEnd = currentFilters.dateEnd;
 
     return loadedOrders.filter((order) => {
+      // 1. Filtro Temporal (Etapa 3S.2)
+      if (!isOrderInPeriod(order.created_at, period, dateStart, dateEnd)) {
+        return false;
+      }
       // 1. Filtro por Categoria principal (Etapa 3N.4.2)
       if (category === 'active') {
         if (!ACTIVE_STATUSES.includes(order.status)) return false;
@@ -540,8 +626,23 @@
 
     const resetBtn = UI.resetBtn();
     if (resetBtn) {
-      const hasActiveFilter = currentFilters.search !== '' || currentFilters.status !== 'all' || currentFilters.category !== 'active';
+      const hasActiveFilter = (
+        currentFilters.search !== '' ||
+        currentFilters.status !== 'all' ||
+        currentFilters.category !== 'active' ||
+        currentFilters.period !== 'all' ||
+        currentFilters.dateStart !== '' ||
+        currentFilters.dateEnd !== ''
+      );
       resetBtn.style.display = hasActiveFilter ? 'inline-flex' : 'none';
+    }
+
+    const exportBtn = UI.exportCsvBtn();
+    if (exportBtn) {
+      exportBtn.disabled = totalFiltered === 0;
+      exportBtn.title = totalFiltered === 0
+        ? 'Nenhum pedido filtrado para exportar'
+        : `Exportar ${totalFiltered} ${totalFiltered === 1 ? 'pedido filtrado' : 'pedidos filtrados'} em CSV`;
     }
   }
 
@@ -596,11 +697,18 @@
    * @param {boolean} hasSearch
    * @returns {{icon: string, message: string}}
    */
-  function getEmptyStateInfo(category, hasSearch) {
+  function getEmptyStateInfo(category, hasSearch, hasPeriodOrStatus) {
     if (hasSearch) {
       return {
         icon: '🔍',
         message: 'Nenhum pedido encontrado para o termo pesquisado.'
+      };
+    }
+
+    if (hasPeriodOrStatus) {
+      return {
+        icon: '📅',
+        message: 'Nenhum pedido encontrado para os filtros e período selecionados.'
       };
     }
 
@@ -637,7 +745,8 @@
     if (filtered.length === 0) {
       UI.showOnly('content');
       const hasSearch = currentFilters.search.trim().length > 0;
-      const emptyInfo = getEmptyStateInfo(currentFilters.category, hasSearch);
+      const hasPeriodOrStatus = currentFilters.period !== 'all' || currentFilters.status !== 'all' || currentFilters.dateStart !== '' || currentFilters.dateEnd !== '';
+      const emptyInfo = getEmptyStateInfo(currentFilters.category, hasSearch, hasPeriodOrStatus);
 
       tableBody.innerHTML = `
         <tr>
@@ -645,7 +754,7 @@
             <div class="table-empty-box">
               <span style="font-size: 2rem;">${emptyInfo.icon}</span>
               <p style="margin: 0; font-weight: 500;">${emptyInfo.message}</p>
-              ${hasSearch || currentFilters.status !== 'all' ? `
+              ${hasSearch || hasPeriodOrStatus ? `
                 <button type="button" class="btn btn-secondary btn-sm" onclick="window.MascotCarOrders.resetFilters()">
                   Limpar filtros de busca
                 </button>
@@ -1268,18 +1377,123 @@
   }
 
   /**
-   * Redefine todos os filtros de busca e status para o padrão (Ativos).
+   * Sanitiza e escapa um valor textual para conformidade estrita com RFC 4180
+   * e protege contra CSV Formula Injection no Excel/LibreOffice.
+   * @param {any} val
+   * @returns {string}
+   */
+  function sanitizeCsvCell(val) {
+    if (val === null || val === undefined) return '""';
+    let str = String(val).trim();
+
+    // Proteção contra CSV Formula Injection:
+    // Se o valor começar com =, +, -, @ ou tabulação, prefixa com apóstrofo
+    if (/^[=+\-@\t\r]/.test(str)) {
+      str = `'${str}`;
+    }
+
+    // Se contiver aspas duplas, vírgula, ponto e vírgula ou quebra de linha, encapsula em aspas e duplica aspas internas
+    if (/[",;\n\r]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+
+    return `"${str}"`;
+  }
+
+  /**
+   * Exporta os pedidos visíveis atualmente (resultado exato de getFilteredOrders)
+   * em formato CSV compatível com RFC 4180 e Excel com BOM UTF-8 (Etapa 3S.2).
+   */
+  function exportOrdersToCSV() {
+    const ordersToExport = getFilteredOrders();
+
+    if (!ordersToExport || ordersToExport.length === 0) {
+      window.alert('Não há pedidos visíveis para exportar com os filtros atuais.');
+      return;
+    }
+
+    const headers = [
+      'Código do Pedido',
+      'Data/Hora',
+      'Nome do Cliente',
+      'Telefone',
+      'Status',
+      'Quantidade de Itens',
+      'Valor Total (R$)',
+      'Observações'
+    ];
+
+    const rows = ordersToExport.map((order) => {
+      const meta = getStatusMeta(order.status);
+      const totalAmountFormatted = Number(order.total_amount || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+
+      return [
+        sanitizeCsvCell(order.order_code || '—'),
+        sanitizeCsvCell(formatDateTime(order.created_at)),
+        sanitizeCsvCell(order.customer_name || 'Cliente'),
+        sanitizeCsvCell(order.customer_phone || 'Não informado'),
+        sanitizeCsvCell(meta.label || order.status),
+        sanitizeCsvCell(order.total_items || 0),
+        sanitizeCsvCell(totalAmountFormatted),
+        sanitizeCsvCell(order.notes || '')
+      ].join(';');
+    });
+
+    // Ponto e vírgula (;) é o separador padrão de CSV para sistemas e Excel em português (pt-BR)
+    const headerRow = headers.map((h) => sanitizeCsvCell(h)).join(';');
+    const csvString = `${headerRow}\r\n${rows.join('\r\n')}`;
+
+    // Prefixo BOM UTF-8 (\uFEFF) para garantir renderização correta de acentos no Excel
+    const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const now = new Date();
+    const dateStamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0')
+    ].join('-');
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pedidos-mascotcar-${dateStamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Redefine todos os filtros de busca, período e status para o padrão (Ativos e Todo o período).
    */
   function resetFilters() {
     currentFilters.search = '';
     currentFilters.category = 'active';
     currentFilters.status = 'all';
+    currentFilters.period = 'all';
+    currentFilters.dateStart = '';
+    currentFilters.dateEnd = '';
 
     const searchInput = UI.searchInput();
     if (searchInput) searchInput.value = '';
 
     const statusFilter = UI.statusFilter();
     if (statusFilter) statusFilter.value = 'all';
+
+    const periodFilter = UI.periodFilter();
+    if (periodFilter) periodFilter.value = 'all';
+
+    const customWrap = UI.customDateWrap();
+    if (customWrap) customWrap.style.display = 'none';
+
+    const startInput = UI.dateStartInput();
+    if (startInput) startInput.value = '';
+
+    const endInput = UI.dateEndInput();
+    if (endInput) endInput.value = '';
 
     renderOrdersTable();
   }
@@ -1470,6 +1684,47 @@
       });
     }
 
+    // Filtro por Período (Etapa 3S.2)
+    const periodFilter = UI.periodFilter();
+    const customDateWrap = UI.customDateWrap();
+    if (periodFilter) {
+      periodFilter.addEventListener('change', (e) => {
+        const val = e.target.value;
+        currentFilters.period = val;
+
+        if (customDateWrap) {
+          customDateWrap.style.display = val === 'custom' ? 'inline-flex' : 'none';
+        }
+
+        renderOrdersTable();
+      });
+    }
+
+    // Datas personalizadas (Etapa 3S.2)
+    const dateStartInput = UI.dateStartInput();
+    if (dateStartInput) {
+      dateStartInput.addEventListener('change', (e) => {
+        currentFilters.dateStart = e.target.value;
+        renderOrdersTable();
+      });
+    }
+
+    const dateEndInput = UI.dateEndInput();
+    if (dateEndInput) {
+      dateEndInput.addEventListener('change', (e) => {
+        currentFilters.dateEnd = e.target.value;
+        renderOrdersTable();
+      });
+    }
+
+    // Botão de Exportação CSV (Etapa 3S.2)
+    const exportCsvBtn = UI.exportCsvBtn();
+    if (exportCsvBtn) {
+      exportCsvBtn.addEventListener('click', () => {
+        exportOrdersToCSV();
+      });
+    }
+
     // Botão Limpar Filtros
     const resetBtn = UI.resetBtn();
     if (resetBtn) {
@@ -1551,6 +1806,8 @@
     openOrderDetailModal,
     closeOrderDetailModal,
     resetFilters,
+    exportOrdersToCSV,
+    getFilteredOrders,
     startPolling: startOrdersPolling,
     stopPolling: stopOrdersPolling,
     getLoadedOrders: () => [...loadedOrders]
